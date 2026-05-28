@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Road Trip Rush</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- TITLE SCREEN -->
+    <section id="title-screen" class="screen active">
+      <div class="banner">
+        <span class="star">★</span>
+        <h1>Road Trip Rush</h1>
+        <span class="star">★</span>
+      </div>
+      <p class="tagline">An American 4th of July Weekend Adventure</p>
+
+      <div class="story">
+        <h2>Meet Asha TC²</h2>
+        <p>
+          Asha is a hardworking student and tech professional who has been
+          grinding through certifications, sprints, and on-call shifts.
+          This 4th of July weekend, she finally clocks out, loads her
+          suitcase onto the roof rack of her trusty red road-trip car,
+          and hits the open American highway.
+        </p>
+        <p>
+          <strong>Goal:</strong> Drive to the vacation destination before
+          sunset. Collect souvenirs, snacks, and postcards along the way —
+          and steer (or hop!) over potholes, traffic cones, roadblocks,
+          and low-fuel hazards along the road.
+        </p>
+      </div>
+
+      <div class="controls-card">
+        <h3>Controls</h3>
+        <ul>
+          <li><kbd>←</kbd> / <kbd>A</kbd> — Reverse / drive left</li>
+          <li><kbd>→</kbd> / <kbd>D</kbd> — Drive right</li>
+          <li><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>Space</kbd> — Hop over obstacles</li>
+          <li><kbd>P</kbd> — Pause / Resume</li>
+        </ul>
+      </div>
+
+      <div class="button-row">
+        <button id="btn-start" class="primary">Start Road Trip</button>
+        <button id="btn-view-scores">High Scores</button>
+      </div>
+    </section>
+
+    <!-- GAMEPLAY SCREEN -->
+    <section id="game-screen" class="screen">
+      <div class="hud">
+        <div class="hud-item">Health:
+          <span id="health-bar"><span id="health-fill"></span></span>
+        </div>
+        <div class="hud-item">Score: <span id="score">0</span></div>
+        <div class="hud-item">Distance:
+          <span id="distance-bar"><span id="distance-fill"></span></span>
+        </div>
+        <button id="btn-pause" class="small">Pause</button>
+      </div>
+
+      <canvas id="game-canvas" width="900" height="420"></canvas>
+
+      <div id="pause-overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <h2>Paused</h2>
+          <button id="btn-resume" class="primary">Resume</button>
+          <button id="btn-quit">Quit to Title</button>
+        </div>
+      </div>
+
+      <div id="gameover-overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <h2 id="gameover-title">Game Over</h2>
+          <p id="gameover-message"></p>
+          <p>Final Score: <strong id="final-score">0</strong></p>
+
+          <div id="initials-section" class="hidden">
+            <p>New high score! Enter your initials:</p>
+            <div class="initials-input">
+              <input maxlength="1" class="initial" data-i="0" />
+              <input maxlength="1" class="initial" data-i="1" />
+              <input maxlength="1" class="initial" data-i="2" />
+            </div>
+            <button id="btn-save-score" class="primary">Save Score</button>
+          </div>
+
+          <div class="button-row">
+            <button id="btn-play-again" class="primary">Play Again</button>
+            <button id="btn-go-title">Title Screen</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HIGH SCORES SCREEN -->
+    <section id="scores-screen" class="screen">
+      <div class="banner">
+        <span class="star">★</span>
+        <h1>High Scores</h1>
+        <span class="star">★</span>
+      </div>
+      <p class="tagline">Top Road Trippers</p>
+
+      <ol id="scores-list" class="scores-list"></ol>
+      <p id="no-scores" class="hidden">No high scores yet — be the first!</p>
+
+      <div class="button-row">
+        <button id="btn-back-title" class="primary">Back to Title</button>
+        <button id="btn-reset-scores" class="danger">Reset High Scores</button>
+      </div>
+    </section>
+
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
