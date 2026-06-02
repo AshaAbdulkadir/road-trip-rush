@@ -143,6 +143,7 @@
     streetlights: [],
     stars: [],
     keys: {},
+    pickupLabels: [],
     rafId: null,
   };
 
@@ -523,6 +524,21 @@
     };
   }
 
+  const PICKUP_NAMES = { souvenir: "Souvenir", snack: "Snack", postcard: "Postcard", camera: "Camera" };
+  const PICKUP_EMOJI = { souvenir: "🗽", snack: "🍿", postcard: "💌", camera: "📸" };
+  const PICKUP_LABEL_TTL = 110;
+
+  function spawnPickupLabel(type, points, screenX, screenY) {
+    game.pickupLabels.push({
+      base: `${PICKUP_EMOJI[type]} ${PICKUP_NAMES[type]} `,
+      pts: `+${points}`,
+      x: screenX,
+      y: screenY,
+      ttl: PICKUP_LABEL_TTL,
+      maxTtl: PICKUP_LABEL_TTL,
+    });
+  }
+
   // ----- Game lifecycle -----
   function startGame() {
     game.worldX = 0;
@@ -546,6 +562,7 @@
     game.stars = [];
     game.paused = false;
     game.running = true;
+    game.pickupLabels.length = 0;
 
     generateWorld();
     updateHud();
@@ -728,7 +745,13 @@
         game.score += co.points;
         sfxCollect();
         spawnParticles(screenX + co.w / 2, co.y + co.h / 2, "collect");
+        spawnPickupLabel(co.type, co.points, screenX + co.w / 2, co.y);
       }
+    }
+
+    // Tick pickup labels — drop expired ones
+    for (let i = game.pickupLabels.length - 1; i >= 0; i--) {
+      if (--game.pickupLabels[i].ttl <= 0) game.pickupLabels.splice(i, 1);
     }
 
     updateHud();
@@ -861,6 +884,10 @@
     }
 
     ctx.restore();
+
+    // Pickup labels render outside the screen-shake transform so the
+    // floating "+points" text stays steady and legible even on hit.
+    drawPickupLabels();
   }
 
   function drawPlayer() {
@@ -1206,6 +1233,40 @@
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(label, sx + 30, GROUND_Y - 60);
+  }
+
+  function drawPickupLabels() {
+    if (game.pickupLabels.length === 0) return;
+    ctx.save();
+    ctx.font = "bold 16px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#000";
+
+    for (const lbl of game.pickupLabels) {
+      const t = 1 - lbl.ttl / lbl.maxTtl;       // 0 → 1 over lifetime
+      const dy = -30 * t;
+      // Hold at full opacity for the first ~65% of life, then fade out.
+      ctx.globalAlpha = Math.max(0, Math.min(1, (1 - t) / 0.35));
+
+      const baseW = ctx.measureText(lbl.base).width;
+      const ptsW = ctx.measureText(lbl.pts).width;
+      const startX = lbl.x - (baseW + ptsW) / 2;
+      const baseCenter = startX + baseW / 2;
+      const ptsCenter = startX + baseW + ptsW / 2;
+      const y = lbl.y + dy;
+
+      ctx.fillStyle = "#fff";
+      ctx.strokeText(lbl.base, baseCenter, y);
+      ctx.fillText(lbl.base, baseCenter, y);
+
+      ctx.fillStyle = "#ffd60a";
+      ctx.strokeText(lbl.pts, ptsCenter, y);
+      ctx.fillText(lbl.pts, ptsCenter, y);
+    }
+
+    ctx.restore();
   }
 
   function drawFinishFlag(x) {
