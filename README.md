@@ -152,6 +152,55 @@ Pure charm, no gameplay effect.
 Cross the finish flag at full health and a red/white/blue confetti
 explosion rains down across the screen.
 
+## 🗓 Daily Challenge
+
+Click **Daily Challenge** on the title screen instead of Start Road Trip
+to play today's seeded run. Every player on the same date gets the
+exact same world layout — obstacles, collectibles, billboards, and
+power-ups in the same places. Daily scores are tracked in a separate
+table (last 7 days) on the High Scores screen.
+
+The seed is derived from today's date in `yyyy-MM-dd` format using a
+small FNV-1a hash → mulberry32 PRNG. Same date = same world. Move to
+tomorrow and a fresh layout appears.
+
+Note: ghost-car playback is disabled during daily runs since the
+"best" recording wouldn't match today's specific layout.
+
+## 🏆 Achievements
+
+Ten badges, tracked across all runs. Unlocked badges show on the
+**Achievements** section of the High Scores screen. A short jingle and
+on-canvas toast play the moment you unlock one.
+
+| Badge | How to unlock |
+|---|---|
+| 🚗 First Drive | Finish Level 1 |
+| 🏙 City Slicker | Finish Level 2 |
+| ✨ Clean Drive | Finish a level without taking damage |
+| 🗽 Souvenir Hunter | Collect 25 items across all runs |
+| 🔥 Combo Master | Reach a ×3 combo multiplier |
+| 📸 Shutterbug | Take 10 selfies total |
+| ⚡ Fully Charged | Pick up every power-up type in one run |
+| 🌅 Sunset Sprinter | Beat Level 2 on Sunset Sprint difficulty |
+| 📖 Scrapbooker | Save 5 photos to the scrapbook |
+| 📯 Honk Honk | Press H 10 times (lifetime) |
+
+## 👻 Personal-best ghost car
+
+After your first finished run on a given difficulty, the game records
+your car's position over time. On subsequent runs at that same
+difficulty, a translucent **BEST** car replays your previous best — race
+yourself! Ghost is saved per-difficulty, only when you actually finish
+the run, and only when you beat your prior score. Disabled during daily
+challenges since the world layout would differ.
+
+## 📖 First-run tutorial
+
+On your very first game, an overlay appears with the full control
+scheme. Press any key to dismiss — it won't appear again. The flag is
+stored under `roadTripRush.tutorialSeen.v1`.
+
 ## Requirements Coverage
 
 | Requirement                                                                 | Where it lives                                              |

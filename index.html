@@ -63,6 +63,7 @@
 
       <div class="button-row">
         <button id="btn-start" class="primary">Start Road Trip</button>
+        <button id="btn-start-daily">🗓 Daily Challenge</button>
         <button id="btn-view-scores">High Scores</button>
         <button id="btn-view-scrapbook">📸 Scrapbook</button>
       </div>
@@ -82,12 +83,28 @@
         <div class="hud-item">Level: <span id="level-display">1</span></div>
         <div class="hud-item">📸 <span id="selfies-left">3</span></div>
         <div class="hud-item hidden" id="combo-badge" data-tier="1">×1</div>
+        <div class="hud-item hidden" id="daily-badge">🗓 Daily</div>
         <button id="btn-pause" class="small">Pause</button>
       </div>
 
       <div id="active-powerups" class="active-powerups"></div>
 
       <canvas id="game-canvas" width="900" height="420"></canvas>
+
+      <div id="tutorial-overlay" class="overlay hidden">
+        <div class="tutorial-card">
+          <h2>How to Road Trip 🚗</h2>
+          <ul class="tutorial-keys">
+            <li><kbd>←</kbd> <kbd>→</kbd> — Drive left / right</li>
+            <li><kbd>↑</kbd> / <kbd>Space</kbd> — Hop over obstacles</li>
+            <li><kbd>C</kbd> — 📸 Take a selfie (3 per run)</li>
+            <li><kbd>H</kbd> — 🔊 Honk</li>
+            <li><kbd>P</kbd> — Pause</li>
+          </ul>
+          <p class="tutorial-tip">Pick up ☕🗺️🛞🎆⛽ power-ups · Chain pickups for ×2 / ×3 combos</p>
+          <p class="tutorial-dismiss">Press any key to start driving →</p>
+        </div>
+      </div>
 
       <div id="pause-overlay" class="overlay hidden">
         <div class="overlay-card">
@@ -151,6 +168,13 @@
 
       <ol id="scores-list" class="scores-list"></ol>
       <p id="no-scores" class="hidden">No high scores yet — be the first!</p>
+
+      <h3 class="section-heading" id="daily-scores-header">🗓 Daily Challenge — Last 7 days</h3>
+      <ol id="daily-scores-list" class="scores-list"></ol>
+      <p id="no-daily-scores" class="hidden">No daily runs yet — try today's challenge!</p>
+
+      <h3 class="section-heading">🏆 Achievements</h3>
+      <div id="achievements-grid" class="achievements-grid"></div>
 
       <div class="button-row">
         <button id="btn-back-title" class="primary">Back to Title</button>
