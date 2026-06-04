@@ -506,3 +506,126 @@ button.small {
   background: var(--sunshine);
   transition: width 0.1s linear;
 }
+
+/* ----- Daily badge ----- */
+#daily-badge {
+  background: #220a3a;
+  color: var(--sunshine);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: bold;
+  border: 2px solid var(--sunshine);
+  font-size: 0.9rem;
+}
+
+/* ----- Achievements grid ----- */
+.section-heading {
+  text-align: center;
+  color: var(--blue);
+  margin: 30px 0 10px;
+  font-size: 1.4rem;
+}
+
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  max-width: 920px;
+  margin: 0 auto 18px;
+  padding: 0 12px;
+}
+
+.ach-card {
+  background: var(--white);
+  padding: 14px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  border-left: 5px solid #ccc;
+  transition: transform 0.12s ease;
+}
+
+.ach-card.unlocked {
+  border-left-color: var(--red);
+  background: linear-gradient(180deg, #fff7e6, #fff);
+}
+
+.ach-card.locked {
+  filter: grayscale(0.7);
+  opacity: 0.72;
+}
+
+.ach-card:hover { transform: translateY(-3px); }
+
+.ach-emoji {
+  font-size: 2rem;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.ach-name {
+  font-weight: bold;
+  color: var(--blue);
+  margin-bottom: 4px;
+}
+
+.ach-blurb {
+  font-size: 0.82rem;
+  color: #555;
+  min-height: 2.4em;
+}
+
+.ach-date {
+  font-size: 0.72rem;
+  color: var(--red);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+.ach-card.locked .ach-date { color: #888; }
+
+/* ----- Tutorial overlay ----- */
+.tutorial-card {
+  background: var(--white);
+  padding: 28px 36px;
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  border-top: 6px solid var(--sunshine);
+  border-bottom: 6px solid var(--blue);
+  max-width: 480px;
+  text-align: left;
+  animation: tutorial-in 0.25s ease;
+}
+
+.tutorial-card h2 {
+  margin-top: 0;
+  text-align: center;
+  color: var(--blue);
+}
+
+.tutorial-keys {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  font-size: 1.05rem;
+  line-height: 1.9;
+}
+
+.tutorial-tip {
+  text-align: center;
+  font-style: italic;
+  color: var(--red);
+  margin: 12px 0 8px;
+}
+
+.tutorial-dismiss {
+  text-align: center;
+  font-weight: bold;
+  color: var(--blue);
+  margin: 4px 0 0;
+}
+
+@keyframes tutorial-in {
+  from { transform: scale(0.85); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}

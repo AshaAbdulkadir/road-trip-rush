@@ -79,6 +79,73 @@
   const POWERUP_SPACING_MIN = 1200;
   const POWERUP_SPACING_MAX = 1800;
 
+  // ----- Seeded RNG (for Daily Challenge mode) -----
+  // mulberry32 — small, fast, deterministic; same seed → same world.
+  function makeSeededRng(seed) {
+    let s = seed >>> 0;
+    return function() {
+      s = (s + 0x6D2B79F5) >>> 0;
+      let t = s;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return (((t ^ (t >>> 14)) >>> 0)) / 4294967296;
+    };
+  }
+  function todayString() {
+    return new Date().toISOString().slice(0, 10); // yyyy-MM-dd
+  }
+  function dailySeedForToday() {
+    const s = todayString();
+    let h = 2166136261 >>> 0;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  // ----- Replayability storage keys -----
+  const DAILY_SCORES_KEY  = "roadTripRush.dailyScores.v1";
+  const ACHIEVEMENTS_KEY  = "roadTripRush.achievements.v1";
+  const STATS_KEY         = "roadTripRush.stats.v1";
+  const GHOST_KEY         = "roadTripRush.ghost.v1";
+  const TUTORIAL_KEY      = "roadTripRush.tutorialSeen.v1";
+
+  // ----- Achievements -----
+  // Each defines: id, name, emoji, blurb, check(stats, runStats) → bool
+  const ACHIEVEMENTS = [
+    { id: "first-drive",     emoji: "🚗", name: "First Drive",
+      blurb: "Finish Level 1.",
+      check: (s) => s.level1Wins >= 1 },
+    { id: "city-slicker",    emoji: "🏙",  name: "City Slicker",
+      blurb: "Finish Level 2.",
+      check: (s) => s.level2Wins >= 1 },
+    { id: "clean-drive",     emoji: "✨", name: "Clean Drive",
+      blurb: "Finish a level without taking damage.",
+      check: (s, r) => r.reachedDestination && r.damageTaken === 0 },
+    { id: "souvenir-hunter", emoji: "🗽", name: "Souvenir Hunter",
+      blurb: "Collect 25 items across all runs.",
+      check: (s) => s.itemsCollected >= 25 },
+    { id: "combo-master",    emoji: "🔥", name: "Combo Master",
+      blurb: "Reach a ×3 combo multiplier.",
+      check: (s) => s.maxCombo >= 3 },
+    { id: "shutterbug",      emoji: "📸", name: "Shutterbug",
+      blurb: "Take 10 selfies total.",
+      check: (s) => s.selfiesTaken >= 10 },
+    { id: "fully-charged",   emoji: "⚡", name: "Fully Charged",
+      blurb: "Collect every power-up type in a single run.",
+      check: (s, r) => r.powerUpsCollected && Object.keys(r.powerUpsCollected).length >= 5 },
+    { id: "sunset-sprinter", emoji: "🌅", name: "Sunset Sprinter",
+      blurb: "Beat Level 2 on Sunset Sprint difficulty.",
+      check: (s, r) => r.reachedDestination && r.difficulty === "hard" && r.level === 2 },
+    { id: "scrapbooker",     emoji: "📖", name: "Scrapbooker",
+      blurb: "Save 5 photos to the scrapbook.",
+      check: () => loadScrapbook().length >= 5 },
+    { id: "honk-honk",       emoji: "📯", name: "Honk Honk",
+      blurb: "Press H 10 times (lifetime).",
+      check: (s) => s.honks >= 10 },
+  ];
+
   // ----- Audio -----
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -205,6 +272,12 @@
     comboBadge: document.getElementById("combo-badge"),
     activePowerups: document.getElementById("active-powerups"),
     difficultyButtons: () => document.querySelectorAll(".diff-btn"),
+    dailyBadge: document.getElementById("daily-badge"),
+    dailyScoresList: document.getElementById("daily-scores-list"),
+    noDailyScores: document.getElementById("no-daily-scores"),
+    dailyScoresHeader: document.getElementById("daily-scores-header"),
+    achievementsGrid: document.getElementById("achievements-grid"),
+    tutorialOverlay: document.getElementById("tutorial-overlay"),
   };
 
   // ----- State -----
@@ -244,6 +317,16 @@
     combo: { count: 0, multiplier: 1 },
     honk: { ttl: 0 },         // visual cue for honk
     difficulty: "normal",
+    daily: false,             // running today's Daily Challenge?
+    rand: Math.random,        // swapped to seeded RNG during daily runs
+    ghostRecording: [],       // current run's recorded car frames
+    ghostPlayback: null,      // best run's playback frames, if available
+    runStats: {
+      damageTaken: 0,
+      powerUpsCollected: {},
+      itemsCollected: 0,
+    },
+    tutorialActive: false,
     keys: {},
     pickupLabels: [],
     selfiesLeft: SELFIES_PER_RUN,
@@ -270,37 +353,37 @@
     const spacingMult = DIFFICULTIES[game.difficulty].obstacleSpacing;
     let x = 600;
     while (x < WORLD_LENGTH - 400) {
-      const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+      const type = obstacleTypes[Math.floor(game.rand() * obstacleTypes.length)];
       game.obstacles.push(makeObstacle(type, x));
-      x += Math.floor((220 + Math.floor(Math.random() * 220)) * spacingMult);
+      x += Math.floor((220 + Math.floor(game.rand() * 220)) * spacingMult);
     }
 
     // Collectibles: souvenir, snack, postcard, camera
     const collectibleTypes = ["souvenir", "snack", "postcard", "camera"];
     let cx = 400;
     while (cx < WORLD_LENGTH - 300) {
-      const type = collectibleTypes[Math.floor(Math.random() * collectibleTypes.length)];
+      const type = collectibleTypes[Math.floor(game.rand() * collectibleTypes.length)];
       // Some collectibles float higher to encourage jumping
-      const high = Math.random() < 0.35;
+      const high = game.rand() < 0.35;
       game.collectibles.push(makeCollectible(type, cx, high));
-      cx += 160 + Math.floor(Math.random() * 180);
+      cx += 160 + Math.floor(game.rand() * 180);
     }
 
     // Background clouds
     for (let i = 0; i < 24; i++) {
       game.clouds.push({
-        x: Math.random() * WORLD_LENGTH,
-        y: 30 + Math.random() * 110,
-        r: 18 + Math.random() * 16,
+        x: game.rand() * WORLD_LENGTH,
+        y: 30 + game.rand() * 110,
+        r: 18 + game.rand() * 16,
       });
     }
 
     // Mountains
     for (let i = 0; i < 14; i++) {
       game.mountains.push({
-        x: i * 600 + Math.random() * 200,
-        h: 90 + Math.random() * 60,
-        w: 280 + Math.random() * 120,
+        x: i * 600 + game.rand() * 200,
+        h: 90 + game.rand() * 60,
+        w: 280 + game.rand() * 120,
       });
     }
 
@@ -332,11 +415,11 @@
 
   function placePowerUps() {
     game.powerUps.length = 0;
-    let x = 900 + Math.random() * 400;
+    let x = 900 + game.rand() * 400;
     while (x < WORLD_LENGTH - 300) {
-      const type = POWERUP_KEYS[Math.floor(Math.random() * POWERUP_KEYS.length)];
+      const type = POWERUP_KEYS[Math.floor(game.rand() * POWERUP_KEYS.length)];
       game.powerUps.push(makePowerUp(type, x));
-      x += POWERUP_SPACING_MIN + Math.random() * (POWERUP_SPACING_MAX - POWERUP_SPACING_MIN);
+      x += POWERUP_SPACING_MIN + game.rand() * (POWERUP_SPACING_MAX - POWERUP_SPACING_MIN);
     }
   }
 
@@ -348,20 +431,20 @@
       w: 32,
       h: 32,
       collected: false,
-      phase: Math.random() * Math.PI * 2,
+      phase: game.rand() * Math.PI * 2,
     };
   }
 
   function placeBillboards(pool, bgColor, fgColor) {
     game.billboards.length = 0;
     // Spread billboards evenly with some jitter, skipping the very start/end
-    const count = Math.min(pool.length, 5 + Math.floor(Math.random() * 2));
+    const count = Math.min(pool.length, 5 + Math.floor(game.rand() * 2));
     const spacing = (WORLD_LENGTH - 1400) / count;
-    const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+    const shuffled = pool.slice().sort(() => game.rand() - 0.5);
     for (let i = 0; i < count; i++) {
       const text = shuffled[i % shuffled.length];
       game.billboards.push({
-        x: 800 + i * spacing + Math.random() * 120,
+        x: 800 + i * spacing + game.rand() * 120,
         l1: text.l1,
         l2: text.l2,
         bg: bgColor,
@@ -408,48 +491,48 @@
     const cityScale = DIFFICULTIES[game.difficulty].obstacleSpacing;
     let x = 500;
     while (x < WORLD_LENGTH - 400) {
-      const type = cityObstacleTypes[Math.floor(Math.random() * cityObstacleTypes.length)];
+      const type = cityObstacleTypes[Math.floor(game.rand() * cityObstacleTypes.length)];
       game.obstacles.push(makeCityObstacle(type, x));
-      x += Math.floor((180 + Math.floor(Math.random() * 200)) * cityScale);
+      x += Math.floor((180 + Math.floor(game.rand() * 200)) * cityScale);
     }
 
     // Collectibles — same structure, city-themed
     const collectibleTypes = ["souvenir", "snack", "postcard", "camera"];
     let cx = 400;
     while (cx < WORLD_LENGTH - 300) {
-      const type = collectibleTypes[Math.floor(Math.random() * collectibleTypes.length)];
-      const high = Math.random() < 0.35;
+      const type = collectibleTypes[Math.floor(game.rand() * collectibleTypes.length)];
+      const high = game.rand() < 0.35;
       game.collectibles.push(makeCollectible(type, cx, high));
-      cx += 160 + Math.floor(Math.random() * 180);
+      cx += 160 + Math.floor(game.rand() * 180);
     }
 
     // City skyline buildings
     let bx = 0;
     while (bx < WORLD_LENGTH + 400) {
-      const w = 55 + Math.floor(Math.random() * 90);
-      const h = 80 + Math.floor(Math.random() * 200);
-      const color = ["#1a2340", "#1e2a3a", "#151f35", "#0e1a2e"][Math.floor(Math.random() * 4)];
+      const w = 55 + Math.floor(game.rand() * 90);
+      const h = 80 + Math.floor(game.rand() * 200);
+      const color = ["#1a2340", "#1e2a3a", "#151f35", "#0e1a2e"][Math.floor(game.rand() * 4)];
       const windows = [];
       for (let wy = h - 20; wy > 10; wy -= 18) {
         for (let wx = 8; wx < w - 8; wx += 16) {
-          if (Math.random() < 0.55) windows.push({ wx, wy });
+          if (game.rand() < 0.55) windows.push({ wx, wy });
         }
       }
       game.buildings.push({ x: bx, w, h, color, windows });
-      bx += w + 2 + Math.floor(Math.random() * 12);
+      bx += w + 2 + Math.floor(game.rand() * 12);
     }
 
     // Streetlights
-    for (let lx = 200; lx < WORLD_LENGTH; lx += 220 + Math.floor(Math.random() * 80)) {
+    for (let lx = 200; lx < WORLD_LENGTH; lx += 220 + Math.floor(game.rand() * 80)) {
       game.streetlights.push({ x: lx });
     }
 
     // Stars
     for (let i = 0; i < 120; i++) {
       game.stars.push({
-        x: Math.random() * WORLD_LENGTH,
-        y: 10 + Math.random() * 140,
-        r: Math.random() < 0.15 ? 1.5 : 0.8,
+        x: game.rand() * WORLD_LENGTH,
+        y: 10 + game.rand() * 140,
+        r: game.rand() < 0.15 ? 1.5 : 0.8,
       });
     }
 
@@ -736,6 +819,12 @@
     game.difficulty = loadDifficulty();
     game.timeLeft = DIFFICULTIES[game.difficulty].timer;
     game.lastTimestamp = null;
+    // Bind RNG: seeded for daily, regular for normal runs.
+    game.rand = game.daily ? makeSeededRng(dailySeedForToday()) : Math.random;
+    // Reset per-run achievement tracking + ghost recording
+    game.runStats = { damageTaken: 0, powerUpsCollected: {}, itemsCollected: 0 };
+    game.ghostRecording = [];
+    game.ghostPlayback = loadGhost(game.difficulty);
     game.frame = 0;
     game.shake = { frames: 0, intensity: 0 };
     game.particles = [];
@@ -765,6 +854,10 @@
     showScreen("game");
     cancelAnimationFrame(game.rafId);
     game.rafId = requestAnimationFrame(loop);
+
+    // First-run tutorial pops on top of the game canvas; dismissal binds
+    // to any key or click. Won't show again after first dismiss.
+    showTutorialIfFirstRun();
   }
 
   function endGame(reachedDestination, timedOut = false) {
@@ -777,6 +870,31 @@
       spawnWinConfetti();
     } else {
       sfxLose();
+    }
+
+    // ----- Lifetime stats + achievement checks -----
+    if (reachedDestination) {
+      if (game.level === 1) bumpStat("level1Wins", 1);
+      if (game.level === 2) bumpStat("level2Wins", 1);
+    }
+    const runStats = {
+      reachedDestination,
+      level: game.level,
+      difficulty: game.difficulty,
+      damageTaken: game.runStats.damageTaken,
+      powerUpsCollected: game.runStats.powerUpsCollected,
+    };
+    checkAchievements(runStats);
+
+    // ----- Ghost save: only for non-daily runs that are a personal best
+    // for this difficulty (and only if you actually finished the run).
+    if (reachedDestination && !game.daily) {
+      saveGhost(game.difficulty, game.score, game.ghostRecording);
+    }
+
+    // ----- Daily score record -----
+    if (game.daily) {
+      recordDailyScore(game.score);
     }
 
     els.gameoverTitle.textContent = reachedDestination
@@ -811,6 +929,7 @@
     game.selfiesLeft--;
     game.selfie = { active: true, frame: 0, snapped: false };
     sfxSelfieReady();
+    bumpStat("selfiesTaken", 1);
     updateHud();
   }
 
@@ -991,6 +1110,239 @@
     }
   }
 
+  // ----- Lifetime stats (for achievements) -----
+  function loadStats() {
+    try {
+      const raw = localStorage.getItem(STATS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return Object.assign({
+        level1Wins: 0,
+        level2Wins: 0,
+        itemsCollected: 0,
+        maxCombo: 1,
+        selfiesTaken: 0,
+        honks: 0,
+      }, parsed);
+    } catch {
+      return { level1Wins: 0, level2Wins: 0, itemsCollected: 0, maxCombo: 1, selfiesTaken: 0, honks: 0 };
+    }
+  }
+  function saveStats(s) {
+    try { localStorage.setItem(STATS_KEY, JSON.stringify(s)); } catch {}
+  }
+  function bumpStat(key, by = 1) {
+    const s = loadStats();
+    s[key] = (s[key] || 0) + by;
+    saveStats(s);
+    checkAchievements({});
+  }
+  function maxStat(key, value) {
+    const s = loadStats();
+    if (value > (s[key] || 0)) {
+      s[key] = value;
+      saveStats(s);
+    }
+    checkAchievements({});
+  }
+
+  // ----- Achievements -----
+  function loadUnlocked() {
+    try {
+      const raw = localStorage.getItem(ACHIEVEMENTS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+  function saveUnlocked(obj) {
+    try { localStorage.setItem(ACHIEVEMENTS_KEY, JSON.stringify(obj)); } catch {}
+  }
+  function checkAchievements(runStats) {
+    const unlocked = loadUnlocked();
+    const stats = loadStats();
+    let newOnes = [];
+    for (const a of ACHIEVEMENTS) {
+      if (unlocked[a.id]) continue;
+      try {
+        if (a.check(stats, runStats || {})) {
+          unlocked[a.id] = { unlockedAt: todayString() };
+          newOnes.push(a);
+        }
+      } catch {}
+    }
+    if (newOnes.length) {
+      saveUnlocked(unlocked);
+      // Play a triumphant short jingle + show a brief on-canvas toast at next render
+      sfxWin();
+      for (const a of newOnes) {
+        game.pickupLabels.push({
+          base: `${a.emoji} ${a.name}!`,
+          pts: " 🏆",
+          x: CANVAS_W / 2,
+          y: 36,
+          ttl: 180,
+          maxTtl: 180,
+        });
+      }
+    }
+    return newOnes;
+  }
+
+  // ----- Daily scores -----
+  function loadDailyScores() {
+    try {
+      const raw = localStorage.getItem(DAILY_SCORES_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+  function saveDailyScores(obj) {
+    try { localStorage.setItem(DAILY_SCORES_KEY, JSON.stringify(obj)); } catch {}
+  }
+  function recordDailyScore(score) {
+    const dt = todayString();
+    const all = loadDailyScores();
+    const entry = all[dt] || { best: 0 };
+    if (score > entry.best) {
+      entry.best = score;
+      entry.at = new Date().toISOString();
+    }
+    entry.runs = (entry.runs || 0) + 1;
+    all[dt] = entry;
+    saveDailyScores(all);
+  }
+
+  // ----- Ghost recording / playback -----
+  // We record (frame, worldX, y, vy) sparsely (every 6 frames) and play back
+  // a translucent car at the recorded worldX position for the current frame.
+  const GHOST_SAMPLE_EVERY = 6;
+  function recordGhostFrame() {
+    if (game.frame % GHOST_SAMPLE_EVERY !== 0) return;
+    game.ghostRecording.push({
+      f: game.frame,
+      x: game.worldX,
+      y: game.player.y,
+      facing: game.player.facing,
+    });
+  }
+  function saveGhost(difficulty, score, recording) {
+    try {
+      const raw = localStorage.getItem(GHOST_KEY);
+      const all = raw ? JSON.parse(raw) : {};
+      if (!all[difficulty] || all[difficulty].score < score) {
+        all[difficulty] = { score, recording };
+        localStorage.setItem(GHOST_KEY, JSON.stringify(all));
+      }
+    } catch {}
+  }
+  function loadGhost(difficulty) {
+    try {
+      const raw = localStorage.getItem(GHOST_KEY);
+      if (!raw) return null;
+      const all = JSON.parse(raw);
+      return all[difficulty] ? all[difficulty].recording : null;
+    } catch { return null; }
+  }
+  function ghostWorldXAtFrame(frame) {
+    if (!game.ghostPlayback || game.ghostPlayback.length === 0) return null;
+    // Linear search backward — list is short (~600 entries max)
+    let lo = game.ghostPlayback[0];
+    if (frame < lo.f) return null;
+    let hi = game.ghostPlayback[game.ghostPlayback.length - 1];
+    if (frame > hi.f) return null;
+    // Binary search would be tidier; linear is fine here
+    for (let i = 0; i < game.ghostPlayback.length - 1; i++) {
+      const a = game.ghostPlayback[i];
+      const b = game.ghostPlayback[i + 1];
+      if (frame >= a.f && frame <= b.f) {
+        const t = (frame - a.f) / (b.f - a.f || 1);
+        return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, facing: a.facing };
+      }
+    }
+    return null;
+  }
+  function drawGhost() {
+    const g = ghostWorldXAtFrame(game.frame);
+    if (!g) return;
+    const screenX = PLAYER_X_SCREEN + (g.x - game.worldX);
+    if (screenX < -PLAYER_W || screenX > CANVAS_W + PLAYER_W) return;
+    ctx.save();
+    ctx.globalAlpha = 0.30;
+    // Draw a simplified white-ish silhouette of the car
+    ctx.fillStyle = "#9fd6ff";
+    ctx.fillRect(screenX + 4, g.y + 14, PLAYER_W - 8, 18);
+    ctx.fillStyle = "#cfe9ff";
+    ctx.beginPath();
+    ctx.moveTo(screenX + 14, g.y + 14);
+    ctx.lineTo(screenX + 22, g.y);
+    ctx.lineTo(screenX + PLAYER_W - 22, g.y);
+    ctx.lineTo(screenX + PLAYER_W - 14, g.y + 14);
+    ctx.closePath();
+    ctx.fill();
+    // Wheels
+    ctx.fillStyle = "rgba(255,255,255,0.65)";
+    ctx.beginPath();
+    ctx.arc(screenX + 18, g.y + 34, 8, 0, Math.PI * 2);
+    ctx.arc(screenX + PLAYER_W - 18, g.y + 34, 8, 0, Math.PI * 2);
+    ctx.fill();
+    // Label
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "bold 10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("BEST", screenX + PLAYER_W / 2, g.y - 2);
+    ctx.restore();
+  }
+
+  // ----- Achievements screen -----
+  function renderAchievements() {
+    if (!els.achievementsGrid) return;
+    const unlocked = loadUnlocked();
+    els.achievementsGrid.innerHTML = "";
+    for (const a of ACHIEVEMENTS) {
+      const card = document.createElement("div");
+      const has = !!unlocked[a.id];
+      card.className = "ach-card" + (has ? " unlocked" : " locked");
+      card.innerHTML = `<div class="ach-emoji">${a.emoji}</div>
+                        <div class="ach-name">${a.name}</div>
+                        <div class="ach-blurb">${a.blurb}</div>` +
+                       (has ? `<div class="ach-date">Unlocked ${unlocked[a.id].unlockedAt}</div>` : `<div class="ach-date">🔒 Locked</div>`);
+      els.achievementsGrid.appendChild(card);
+    }
+  }
+
+  // ----- Daily scores rendering on high-scores screen -----
+  function renderDailyScores() {
+    if (!els.dailyScoresList) return;
+    const all = loadDailyScores();
+    const today = todayString();
+    els.dailyScoresList.innerHTML = "";
+    // Sort dates desc and show last 7 days
+    const dates = Object.keys(all).sort().reverse().slice(0, 7);
+    if (dates.length === 0) {
+      els.noDailyScores.classList.remove("hidden");
+      return;
+    }
+    els.noDailyScores.classList.add("hidden");
+    for (const d of dates) {
+      const li = document.createElement("li");
+      const isToday = d === today;
+      li.innerHTML = `<span class="initials">${d}${isToday ? " (today)" : ""}</span>` +
+                     `<span class="points">${all[d].best}</span>`;
+      els.dailyScoresList.appendChild(li);
+    }
+  }
+
+  // ----- Tutorial -----
+  function showTutorialIfFirstRun() {
+    if (localStorage.getItem(TUTORIAL_KEY)) return;
+    if (!els.tutorialOverlay) return;
+    els.tutorialOverlay.classList.remove("hidden");
+    game.tutorialActive = true;
+  }
+  function dismissTutorial() {
+    if (!game.tutorialActive) return;
+    game.tutorialActive = false;
+    if (els.tutorialOverlay) els.tutorialOverlay.classList.add("hidden");
+    try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch {}
+  }
+
   // ----- Main loop -----
   function loop(timestamp) {
     if (!game.running) return;
@@ -1073,6 +1425,7 @@
     game.frame++;
     if (game.shake.frames > 0) game.shake.frames--;
     updateParticles();
+    recordGhostFrame();
 
     // Tick active power-up timers and apply effects
     tickActivePowerUps();
@@ -1146,7 +1499,9 @@
           continue;
         }
 
-        game.health -= DIFFICULTIES[game.difficulty].damage;
+        const dmg = DIFFICULTIES[game.difficulty].damage;
+        game.health -= dmg;
+        game.runStats.damageTaken += dmg;
         game.player.iFrames = 60;
         sfxHit();
         game.shake = { frames: 18, intensity: 7 };
@@ -1187,6 +1542,10 @@
         sfxCollect();
         spawnParticles(screenX + co.w / 2, co.y + co.h / 2, "collect");
         spawnPickupLabel(co.type, earned, screenX + co.w / 2, co.y);
+        // Stats
+        game.runStats.itemsCollected++;
+        bumpStat("itemsCollected", 1);
+        maxStat("maxCombo", game.combo.multiplier);
       }
     }
 
@@ -1200,6 +1559,7 @@
         pu.collected = true;
         applyPowerUp(pu.type);
         spawnParticles(screenX + pu.w / 2, pu.y + pu.h / 2, "collect");
+        game.runStats.powerUpsCollected[pu.type] = true;
       }
     }
 
@@ -1274,6 +1634,7 @@
     if (!game.running) return;
     sfxHonk();
     game.honk.ttl = 28;
+    bumpStat("honks", 1);
   }
 
   // ----- Particles -----
@@ -1391,6 +1752,9 @@
       const bobY = pu.y + Math.sin(game.frame * 0.07 + pu.phase) * 5;
       drawPowerUp(pu.type, sx, bobY);
     }
+
+    // Personal-best ghost car (drawn behind the live player)
+    if (!game.daily) drawGhost();
 
     // Star-spangled invincibility aura behind the car
     if (hasActivePowerUp("star")) {
@@ -2075,6 +2439,10 @@
     if (els.selfiesLeft) els.selfiesLeft.textContent = game.selfiesLeft;
     updateComboBadge();
     updateActivePowerUpsHud();
+    if (els.dailyBadge) {
+      els.dailyBadge.classList.toggle("hidden", !game.daily);
+      if (game.daily) els.dailyBadge.textContent = `🗓 Daily ${todayString()}`;
+    }
   }
 
   function updateComboBadge() {
@@ -2191,6 +2559,11 @@
         e.preventDefault();
       }
     }
+    // Any keypress dismisses the tutorial overlay
+    if (game.tutorialActive) {
+      dismissTutorial();
+      return;
+    }
     if (e.key === "p" || e.key === "P") {
       if (game.running) togglePause();
       return;
@@ -2216,9 +2589,18 @@
   }
 
   // ----- Button wiring -----
-  document.getElementById("btn-start").addEventListener("click", startGame);
+  document.getElementById("btn-start").addEventListener("click", () => {
+    game.daily = false;
+    startGame();
+  });
+  document.getElementById("btn-start-daily").addEventListener("click", () => {
+    game.daily = true;
+    startGame();
+  });
   document.getElementById("btn-view-scores").addEventListener("click", () => {
     renderHighScores();
+    renderDailyScores();
+    renderAchievements();
     showScreen("scores");
   });
   document.getElementById("btn-back-title").addEventListener("click", () => showScreen("title"));
@@ -2237,7 +2619,10 @@
     els.pauseOverlay.classList.add("hidden");
     showScreen("title");
   });
-  document.getElementById("btn-play-again").addEventListener("click", startGame);
+  document.getElementById("btn-play-again").addEventListener("click", () => {
+    // "Play Again" re-uses the same mode (daily vs regular).
+    startGame();
+  });
   document.getElementById("btn-go-title").addEventListener("click", () => {
     els.gameoverOverlay.classList.add("hidden");
     showScreen("title");
