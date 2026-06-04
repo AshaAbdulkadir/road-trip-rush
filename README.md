@@ -29,6 +29,7 @@ wheels that spin as you drive.
 | `→` or `D`                          | Drive right            |
 | `↑`, `W`, or `Space`                | Hop over obstacles     |
 | `C`                                 | 📸 Take a selfie       |
+| `H`                                 | 🔊 Honk                |
 | `P`                                 | Pause / Resume         |
 
 ## Features
@@ -112,6 +113,44 @@ the captured items, and the date. There's a **Clear Scrapbook** button
 on the scrapbook screen.
 
 Storage: ~70 KB per JPEG × 15 = ~1 MB of localStorage.
+
+## Difficulty modes
+
+Pick on the title screen — your choice is remembered for next time.
+
+| Mode             | Timer | Damage per hit | Obstacle density | Scroll |
+| ---------------- | ----- | -------------- | ---------------- | ------ |
+| 🌴 Easy           | 80s   | 12             | sparser          | 0.9×   |
+| 🚗 Road-Trip     | 60s   | 18             | normal           | 1.0×   |
+| 🌅 Sunset Sprint | 45s   | 24             | denser           | 1.1×   |
+
+## Combos and Power-ups
+
+**Combo multiplier.** Each collectible pickup bumps the streak counter
+shown in the HUD. Streak ≥3 → ×2 scoring, ≥7 → ×3. Hitting an obstacle
+breaks the streak. A bright ding plays whenever you cross a tier.
+
+**Power-ups** spawn along the road every 1200–1800 px. Pick them up by
+driving (or hopping) through them. Active effects show as pills below
+the HUD with shrinking timer bars.
+
+| Power-up        | Effect                           | Duration |
+| --------------- | -------------------------------- | -------- |
+| ☕ Coffee        | +35% scroll speed                | 5s       |
+| 🗺️ GPS           | Timer drains at half speed       | 4s       |
+| 🛞 Spare Tire   | Absorbs the next obstacle hit    | until used |
+| 🎆 Star-Spangled | Full invincibility + sparkle aura | 3s       |
+| ⛽ Gas Can       | Instant +30 HP                   | instant  |
+
+## Honk
+
+Press `H` for a quick two-tone car honk and a "HONK!" speech bubble.
+Pure charm, no gameplay effect.
+
+## Confetti finish
+
+Cross the finish flag at full health and a red/white/blue confetti
+explosion rains down across the screen.
 
 ## Requirements Coverage
 
