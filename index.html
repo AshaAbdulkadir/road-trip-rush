@@ -46,6 +46,11 @@
         </ul>
       </div>
 
+      <div class="car-picker">
+        <h3>Choose Your Ride</h3>
+        <div id="car-grid" class="car-grid"></div>
+      </div>
+
       <div class="difficulty-picker">
         <h3>Difficulty</h3>
         <div class="diff-row">
@@ -66,6 +71,7 @@
         <button id="btn-start-daily">🗓 Daily Challenge</button>
         <button id="btn-view-scores">High Scores</button>
         <button id="btn-view-scrapbook">📸 Scrapbook</button>
+        <button id="btn-settings">⚙ Settings</button>
       </div>
     </section>
 
@@ -90,6 +96,37 @@
       <div id="active-powerups" class="active-powerups"></div>
 
       <canvas id="game-canvas" width="900" height="420"></canvas>
+
+      <!-- Mobile / touch on-screen controls. Hidden on non-touch devices. -->
+      <div id="touch-controls" class="touch-controls hidden">
+        <button id="tc-left"   class="tc-btn tc-left">◀</button>
+        <button id="tc-right"  class="tc-btn tc-right">▶</button>
+        <button id="tc-jump"   class="tc-btn tc-jump">⤴</button>
+        <button id="tc-selfie" class="tc-btn tc-selfie">📸</button>
+        <button id="tc-honk"   class="tc-btn tc-honk">🔊</button>
+      </div>
+
+      <div id="settings-overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <h2>⚙ Settings</h2>
+          <div class="settings-row">
+            <label for="setting-sfx">🔊 Sound effects</label>
+            <input type="range" id="setting-sfx" min="0" max="1" step="0.05" value="0.85" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-music">🎵 Music</label>
+            <input type="range" id="setting-music" min="0" max="0.6" step="0.05" value="0" />
+            <small class="setting-note">(default off — procedural chiptune)</small>
+          </div>
+          <div class="settings-row">
+            <label for="setting-reducemotion">
+              <input type="checkbox" id="setting-reducemotion" />
+              ✨ Reduce motion (no screen shake)
+            </label>
+          </div>
+          <button id="btn-close-settings" class="primary">Done</button>
+        </div>
+      </div>
 
       <div id="tutorial-overlay" class="overlay hidden">
         <div class="tutorial-card">

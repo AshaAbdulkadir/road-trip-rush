@@ -629,3 +629,131 @@ button.small {
   from { transform: scale(0.85); opacity: 0; }
   to   { transform: scale(1);    opacity: 1; }
 }
+
+/* ----- Car picker on title ----- */
+.car-picker {
+  background: var(--white);
+  border-left: 6px solid var(--sunshine);
+  border-right: 6px solid var(--red);
+  padding: 14px 20px 18px;
+  border-radius: 12px;
+  max-width: 720px;
+  margin: 14px auto;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.car-picker h3 {
+  margin: 0 0 10px;
+  color: var(--blue);
+}
+.car-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.car-card {
+  border: 2px solid #ccc;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 8px;
+  cursor: pointer;
+  transition: transform 0.1s ease, border-color 0.12s ease;
+  font: inherit;
+}
+.car-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+.car-card.selected {
+  border-color: var(--red);
+  background: #fff7f7;
+  box-shadow: 0 0 0 3px rgba(215, 38, 61, 0.18);
+}
+.car-card.locked {
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+  opacity: 0.6;
+}
+.car-emoji { font-size: 2rem; line-height: 1; }
+.car-name {
+  font-weight: bold;
+  color: var(--blue);
+  margin-top: 4px;
+}
+.car-blurb {
+  font-size: 0.78rem;
+  color: #666;
+  margin-top: 3px;
+  min-height: 2.6em;
+}
+
+/* ----- Settings overlay ----- */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.settings-row label {
+  font-weight: bold;
+  color: var(--blue);
+  min-width: 130px;
+  text-align: left;
+}
+.settings-row input[type="range"] { flex: 1; min-width: 160px; }
+.setting-note {
+  display: block;
+  font-size: 0.72rem;
+  color: #888;
+  font-style: italic;
+  margin-top: 2px;
+  text-align: center;
+  width: 100%;
+}
+
+/* ----- Touch on-screen controls ----- */
+.touch-controls {
+  position: fixed;
+  bottom: 16px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 10;
+  padding: 0 16px;
+  gap: 8px;
+}
+.tc-btn {
+  pointer-events: auto;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: 3px solid var(--blue);
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 1.7rem;
+  font-weight: bold;
+  color: var(--blue);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tc-btn.active {
+  background: var(--sunshine);
+  transform: scale(0.92);
+}
+.tc-left  { order: 1; }
+.tc-right { order: 2; }
+.tc-jump  { order: 3; margin-left: auto; }
+.tc-selfie { order: 4; }
+.tc-honk   { order: 5; }
+
+/* ----- Reduce-motion overrides ----- */
+.reduce-motion .polaroid          { transform: rotate(0deg) !important; }
+.reduce-motion #combo-badge       { animation: none !important; }
+.reduce-motion .ach-card          { transition: none !important; }
+.reduce-motion .tutorial-card     { animation: none !important; }
