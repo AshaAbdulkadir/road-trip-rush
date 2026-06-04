@@ -40,6 +40,7 @@
           <li><kbd>←</kbd> / <kbd>A</kbd> — Reverse / drive left</li>
           <li><kbd>→</kbd> / <kbd>D</kbd> — Drive right</li>
           <li><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>Space</kbd> — Hop over obstacles</li>
+          <li><kbd>C</kbd> — 📸 Take a selfie (3 per run)</li>
           <li><kbd>P</kbd> — Pause / Resume</li>
         </ul>
       </div>
@@ -47,6 +48,7 @@
       <div class="button-row">
         <button id="btn-start" class="primary">Start Road Trip</button>
         <button id="btn-view-scores">High Scores</button>
+        <button id="btn-view-scrapbook">📸 Scrapbook</button>
       </div>
     </section>
 
@@ -62,6 +64,7 @@
         </div>
         <div class="hud-item">Time: <span id="timer-display">60</span>s</div>
         <div class="hud-item">Level: <span id="level-display">1</span></div>
+        <div class="hud-item">📸 <span id="selfies-left">3</span></div>
         <button id="btn-pause" class="small">Pause</button>
       </div>
 
@@ -93,9 +96,28 @@
 
           <div class="button-row">
             <button id="btn-play-again" class="primary">Play Again</button>
+            <button id="btn-view-scrapbook-from-gameover">📸 Scrapbook</button>
             <button id="btn-go-title">Title Screen</button>
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- SCRAPBOOK SCREEN -->
+    <section id="scrapbook-screen" class="screen">
+      <div class="banner">
+        <span class="star">★</span>
+        <h1>Asha's Scrapbook</h1>
+        <span class="star">★</span>
+      </div>
+      <p class="tagline">Selfies from the road</p>
+
+      <div id="scrapbook-grid" class="scrapbook-grid"></div>
+      <p id="no-scrapbook" class="hidden">No selfies yet — press <kbd>C</kbd> on your next run to take one!</p>
+
+      <div class="button-row">
+        <button id="btn-back-from-scrapbook" class="primary">Back to Title</button>
+        <button id="btn-reset-scrapbook" class="danger">Clear Scrapbook</button>
       </div>
     </section>
 
