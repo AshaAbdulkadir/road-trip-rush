@@ -28,6 +28,7 @@ wheels that spin as you drive.
 | `←` or `A`                          | Reverse / drive left   |
 | `→` or `D`                          | Drive right            |
 | `↑`, `W`, or `Space`                | Hop over obstacles     |
+| `C`                                 | 📸 Take a selfie       |
 | `P`                                 | Pause / Resume         |
 
 ## Features
@@ -85,12 +86,32 @@ road-trip-rush/
 └── README.md       # This file
 ```
 
-## Build Phases
+## Selfie Mode & Scrapbook
 
-The current build covers core road-trip gameplay. A later build phase will
-add **camera moves** so Asha can actively take pictures and selfies
-mid-trip (the collectible cameras 📸 already hint at this — they will
-unlock active photo moves with bonus scoring in a future phase).
+Press `C` mid-game to take a selfie. The world freezes for ~0.8s while a
+polaroid frame swings over the canvas, a shutter clicks, and a quick
+flash captures the scene. **3 selfies per run**, shown in the HUD as
+`📸 ×3`.
+
+**Bonus scoring** is awarded for whatever's visible in the photo:
+
+| In frame                         | Points each |
+| -------------------------------- | ----------- |
+| Uncollected collectible (🗽🍿💌📸) | +10 |
+| Surviving obstacle (⚠)            | +5  |
+| Roadside sign (🪧)                | +25 |
+| Billboard (📋)                    | +30 |
+| Finish flag (🏁)                  | +75 |
+
+Variety multiplier: capture **3+ distinct things** → ×1.5, **5+** → ×2.
+
+Photos are saved to a **persistent scrapbook** (4th screen, accessible
+from the title and game-over screens) — newest first, capped at 15
+photos. Each polaroid card shows the photo, the bonus earned, the level,
+the captured items, and the date. There's a **Clear Scrapbook** button
+on the scrapbook screen.
+
+Storage: ~70 KB per JPEG × 15 = ~1 MB of localStorage.
 
 ## Requirements Coverage
 
@@ -105,7 +126,8 @@ unlock active photo moves with bonus scoring in a future phase).
 | Way to lose points/health                                                   | Obstacle collisions deduct health                           |
 | Endgame condition                                                           | Health = 0 OR distance reached                              |
 | At least one level                                                          | Full procedurally-laid road from start to FINISH flag       |
-| Title / Gameplay / High Scores screens                                      | `#title-screen`, `#game-screen`, `#scores-screen`           |
+| Title / Gameplay / High Scores / Scrapbook screens                          | `#title-screen`, `#game-screen`, `#scores-screen`, `#scrapbook-screen` |
+| Selfie / camera build phase                                                 | Press `C` → polaroid snap → saved to scrapbook (4th screen) |
 | Editable 3-character initials for high scores                               | `.initial` inputs in `#initials-section`                    |
 | Persistent high scores via localStorage                                     | `loadHighScores` / `saveHighScores` in `script.js`          |
 | No cloud / no internet required                                             | All assets generated via Canvas + CSS + emoji               |

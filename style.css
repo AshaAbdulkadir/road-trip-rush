@@ -306,3 +306,89 @@ button.small {
 }
 
 .hidden { display: none !important; }
+
+/* ----- Scrapbook ----- */
+.scrapbook-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 22px;
+  max-width: 920px;
+  margin: 20px auto;
+  padding: 0 12px;
+}
+
+.polaroid {
+  background: var(--white);
+  padding: 10px 10px 14px 10px;
+  border-radius: 4px;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.2),
+    0 6px 14px rgba(0,0,0,0.25);
+  transform: rotate(var(--tilt, -1.2deg));
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  border-top: 4px solid var(--sunshine);
+}
+
+.polaroid:nth-child(2n)  { --tilt:  1.6deg; }
+.polaroid:nth-child(3n)  { --tilt: -2deg; }
+.polaroid:nth-child(5n)  { --tilt:  0.9deg; }
+
+.polaroid:hover {
+  transform: rotate(0deg) scale(1.04);
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.25),
+    0 12px 22px rgba(0,0,0,0.3);
+  z-index: 2;
+}
+
+.polaroid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #ddd;
+  background: #eef;
+}
+
+.polaroid-meta {
+  padding: 8px 4px 0;
+  text-align: center;
+  font-family: "Trebuchet MS", "Comic Sans MS", sans-serif;
+}
+
+.polaroid-bonus {
+  font-weight: bold;
+  color: var(--red);
+  font-size: 1.05rem;
+}
+
+.polaroid-items {
+  font-size: 1.1rem;
+  margin: 4px 0 2px;
+  letter-spacing: 2px;
+  min-height: 1.2em;
+}
+
+.polaroid-footer {
+  font-size: 0.78rem;
+  color: #666;
+  font-style: italic;
+}
+
+#no-scrapbook {
+  text-align: center;
+  font-size: 1.05rem;
+  color: var(--blue);
+}
+
+/* Selfies HUD counter — a subtle pulse when it changes */
+@keyframes selfie-pulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.4); color: var(--sunshine); }
+  100% { transform: scale(1); }
+}
+
+#selfies-left {
+  display: inline-block;
+  min-width: 14px;
+  font-weight: bold;
+}

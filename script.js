@@ -24,6 +24,22 @@
   const COUNTDOWN_SECONDS = 60;
   const CITY_TIME_BONUS = 45;
 
+  // ----- Selfie / Scrapbook -----
+  const SCRAPBOOK_KEY = "roadTripRush.scrapbook.v1";
+  const SELFIES_PER_RUN = 3;
+  const MAX_SCRAPBOOK = 15;            // cap to keep localStorage manageable
+  const SNAP_JPEG_QUALITY = 0.55;       // ~70KB per 900x420 photo
+  const SELFIE_TOTAL_FRAMES = 50;      // ~0.8s at 60fps; the snap happens at SNAP_FRAME
+  const SNAP_FRAME = 22;                // frame when the shutter fires
+  // Selfie scoring weights (paid per item visible in the photo)
+  const SELFIE_PTS = {
+    collectible: 10,
+    obstacle:    5,
+    sign:        25,
+    billboard:   30,
+    finishFlag:  75,
+  };
+
   // ----- Audio -----
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -88,11 +104,24 @@
     playTone(1400, "square", 0.1, 0.35);
   }
 
+  function sfxShutter() {
+    // Short, percussive "k-chk" — high white-noise burst then a low click
+    playTone(2400, "square", 0.04, 0.25);
+    setTimeout(() => playTone(180, "square", 0.05, 0.3), 60);
+  }
+
+  function sfxSelfieReady() {
+    // Quick rising chirp when entering selfie mode
+    playTone(660, "sine", 0.08, 0.18);
+    playTone(880, "sine", 0.1, 0.18);
+  }
+
   // ----- DOM -----
   const screens = {
     title: document.getElementById("title-screen"),
     game: document.getElementById("game-screen"),
     scores: document.getElementById("scores-screen"),
+    scrapbook: document.getElementById("scrapbook-screen"),
   };
   const canvas = document.getElementById("game-canvas");
   const ctx = canvas.getContext("2d");
@@ -111,6 +140,9 @@
     initialsSection: document.getElementById("initials-section"),
     scoresList: document.getElementById("scores-list"),
     noScores: document.getElementById("no-scores"),
+    selfiesLeft: document.getElementById("selfies-left"),
+    scrapbookGrid: document.getElementById("scrapbook-grid"),
+    noScrapbook: document.getElementById("no-scrapbook"),
   };
 
   // ----- State -----
@@ -142,8 +174,11 @@
     buildings: [],
     streetlights: [],
     stars: [],
+    billboards: [],
     keys: {},
     pickupLabels: [],
+    selfiesLeft: SELFIES_PER_RUN,
+    selfie: { active: false, frame: 0, snapped: false },
     rafId: null,
   };
 
@@ -197,6 +232,46 @@
         w: 280 + Math.random() * 120,
       });
     }
+
+    // Roadside billboards — photogenic, no collision
+    placeBillboards(HIGHWAY_BILLBOARDS, "#1b3a8a", "#fff");
+  }
+
+  const HIGHWAY_BILLBOARDS = [
+    { l1: "Tech Code Cloud", l2: "TC² — Free Hugs!" },
+    { l1: "World's Biggest", l2: "Ball of Yarn — 12 mi" },
+    { l1: "Welcome to", l2: "Liberty Falls, USA" },
+    { l1: "🎆 Parade Tonight", l2: "9pm Sharp" },
+    { l1: "Asha's Diner", l2: "Best Pie in 5 States" },
+    { l1: "Pick Your Own", l2: "Sparklers ➜" },
+    { l1: "Last Gas", l2: "for 50 Miles" },
+  ];
+
+  const CITY_BILLBOARDS = [
+    { l1: "Times Square", l2: "Studios" },
+    { l1: "Broadway", l2: "Showtime 8pm" },
+    { l1: "City Diner", l2: "Open 24 Hrs" },
+    { l1: "TC² Tower", l2: "Floor 47" },
+    { l1: "🎆 Fireworks", l2: "Tonight @ 9" },
+    { l1: "Skyline Hotel", l2: "Vacancy ✨" },
+  ];
+
+  function placeBillboards(pool, bgColor, fgColor) {
+    game.billboards.length = 0;
+    // Spread billboards evenly with some jitter, skipping the very start/end
+    const count = Math.min(pool.length, 5 + Math.floor(Math.random() * 2));
+    const spacing = (WORLD_LENGTH - 1400) / count;
+    const shuffled = pool.slice().sort(() => Math.random() - 0.5);
+    for (let i = 0; i < count; i++) {
+      const text = shuffled[i % shuffled.length];
+      game.billboards.push({
+        x: 800 + i * spacing + Math.random() * 120,
+        l1: text.l1,
+        l2: text.l2,
+        bg: bgColor,
+        fg: fgColor,
+      });
+    }
   }
 
   // ----- Level 2 setup -----
@@ -214,6 +289,8 @@
     game.shake = { frames: 0, intensity: 0 };
     game.particles = [];
     game.transition = { active: true, frames: 160 };
+    game.selfie = { active: false, frame: 0, snapped: false };
+    // Note: selfiesLeft persists across levels — they were a run-wide budget.
     generateCityWorld();
     updateHud();
     sfxWin();
@@ -276,6 +353,9 @@
         r: Math.random() < 0.15 ? 1.5 : 0.8,
       });
     }
+
+    // Neon-styled billboards for the city
+    placeBillboards(CITY_BILLBOARDS, "#220a3a", "#ffd60a");
   }
 
   function makeCityObstacle(type, worldX) {
@@ -560,6 +640,9 @@
     game.buildings = [];
     game.streetlights = [];
     game.stars = [];
+    game.billboards = [];
+    game.selfiesLeft = SELFIES_PER_RUN;
+    game.selfie = { active: false, frame: 0, snapped: false };
     game.paused = false;
     game.running = true;
     game.pickupLabels.length = 0;
@@ -609,6 +692,195 @@
     els.gameoverOverlay.classList.remove("hidden");
   }
 
+  // ----- Selfie / Scrapbook -----
+  function tryStartSelfie() {
+    if (!game.running || game.paused) return;
+    if (game.selfie.active) return;
+    if (game.transition.active) return;
+    if (game.selfiesLeft <= 0) return;
+    game.selfiesLeft--;
+    game.selfie = { active: true, frame: 0, snapped: false };
+    sfxSelfieReady();
+    updateHud();
+  }
+
+  function captureSelfie() {
+    // Capture the canvas BEFORE drawing the polaroid frame so the photo
+    // is a clean shot of the scene.
+    let dataUrl = "";
+    try {
+      dataUrl = canvas.toDataURL("image/jpeg", SNAP_JPEG_QUALITY);
+    } catch (err) {
+      // Some browsers may refuse toDataURL on a tainted canvas — extremely
+      // unlikely here since everything is drawn in-process, but be safe.
+      dataUrl = "";
+    }
+
+    // Compute bonus from what's visible on screen right now
+    const visible = scanVisibleFrame();
+    let bonus = 0;
+    bonus += visible.collectibles.length * SELFIE_PTS.collectible;
+    bonus += visible.obstacles * SELFIE_PTS.obstacle;
+    bonus += visible.signs * SELFIE_PTS.sign;
+    bonus += visible.billboards.length * SELFIE_PTS.billboard;
+    if (visible.finishFlag) bonus += SELFIE_PTS.finishFlag;
+    // Variety multiplier — at least 3 distinct things in the photo
+    const variety = visible.collectibles.length
+                  + (visible.obstacles > 0 ? 1 : 0)
+                  + (visible.signs > 0 ? 1 : 0)
+                  + visible.billboards.length
+                  + (visible.finishFlag ? 1 : 0);
+    let multiplier = 1;
+    if (variety >= 5) multiplier = 2;
+    else if (variety >= 3) multiplier = 1.5;
+    bonus = Math.round(bonus * multiplier);
+
+    game.score += bonus;
+    sfxShutter();
+
+    // Floating "+bonus" label so the score change is visible
+    spawnPickupLabel(
+      "camera",
+      bonus,
+      game.player.x + PLAYER_W / 2,
+      game.player.y - 24
+    );
+
+    // Save to scrapbook
+    if (dataUrl) {
+      const entry = {
+        dataUrl,
+        bonus,
+        multiplier,
+        level: game.level,
+        date: new Date().toISOString().slice(0, 10), // yyyy-MM-dd
+        items: {
+          collectibles: visible.collectibles,
+          obstacles: visible.obstacles,
+          signs: visible.signs,
+          billboards: visible.billboards,
+          finishFlag: visible.finishFlag,
+        },
+      };
+      addScrapbookEntry(entry);
+    }
+  }
+
+  function scanVisibleFrame() {
+    // What's currently in the camera's view (0..CANVAS_W)?
+    const onScreen = (x, w) => x + (w || 0) > 0 && x < CANVAS_W;
+    const collectibles = [];
+    for (const co of game.collectibles) {
+      if (co.collected) continue;
+      const sx = co.x - game.worldX;
+      if (onScreen(sx, co.w)) collectibles.push(co.type);
+    }
+    let obstacles = 0;
+    for (const ob of game.obstacles) {
+      if (ob.hit) continue;
+      const sx = ob.x - game.worldX;
+      if (onScreen(sx, ob.w)) obstacles++;
+    }
+    const signsX = game.level === 2
+      ? [1800, 3800, 5800]
+      : [2400, 4400, 6200];
+    let signs = 0;
+    for (const wx of signsX) {
+      const sx = wx - game.worldX;
+      if (onScreen(sx, 60)) signs++;
+    }
+    const billboards = [];
+    for (const b of game.billboards) {
+      const sx = b.x - game.worldX;
+      if (onScreen(sx, 140)) billboards.push(b.l1);
+    }
+    const flagWorldX = WORLD_LENGTH - 80;
+    const flagScreenX = flagWorldX - game.worldX;
+    const finishFlag = onScreen(flagScreenX, 64);
+    return { collectibles, obstacles, signs, billboards, finishFlag };
+  }
+
+  function loadScrapbook() {
+    try {
+      const raw = localStorage.getItem(SCRAPBOOK_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveScrapbook(list) {
+    try {
+      localStorage.setItem(SCRAPBOOK_KEY, JSON.stringify(list));
+    } catch (err) {
+      // QuotaExceeded — drop the oldest and try again
+      if (list.length > 1) {
+        saveScrapbook(list.slice(0, list.length - 1));
+      }
+    }
+  }
+
+  function addScrapbookEntry(entry) {
+    const list = loadScrapbook();
+    list.unshift(entry); // newest first
+    if (list.length > MAX_SCRAPBOOK) list.length = MAX_SCRAPBOOK;
+    saveScrapbook(list);
+  }
+
+  function renderScrapbook() {
+    const list = loadScrapbook();
+    els.scrapbookGrid.innerHTML = "";
+    if (list.length === 0) {
+      els.noScrapbook.classList.remove("hidden");
+      return;
+    }
+    els.noScrapbook.classList.add("hidden");
+    for (const entry of list) {
+      const card = document.createElement("div");
+      card.className = "polaroid";
+
+      const img = document.createElement("img");
+      img.src = entry.dataUrl;
+      img.alt = `Selfie — Level ${entry.level}`;
+      card.appendChild(img);
+
+      const meta = document.createElement("div");
+      meta.className = "polaroid-meta";
+
+      const bonus = document.createElement("div");
+      bonus.className = "polaroid-bonus";
+      bonus.textContent = `+${entry.bonus} pts${entry.multiplier > 1 ? ` (×${entry.multiplier})` : ""}`;
+      meta.appendChild(bonus);
+
+      const itemEmojis = [];
+      const emojiMap = { souvenir: "🗽", snack: "🍿", postcard: "💌", camera: "📸" };
+      for (const c of (entry.items.collectibles || [])) {
+        itemEmojis.push(emojiMap[c] || "❔");
+      }
+      if (entry.items.obstacles) itemEmojis.push(`⚠×${entry.items.obstacles}`);
+      if (entry.items.signs)     itemEmojis.push(`🪧×${entry.items.signs}`);
+      if (entry.items.billboards && entry.items.billboards.length) {
+        itemEmojis.push(`📋×${entry.items.billboards.length}`);
+      }
+      if (entry.items.finishFlag) itemEmojis.push("🏁");
+
+      const items = document.createElement("div");
+      items.className = "polaroid-items";
+      items.textContent = itemEmojis.join(" ");
+      meta.appendChild(items);
+
+      const footer = document.createElement("div");
+      footer.className = "polaroid-footer";
+      footer.textContent = `Lvl ${entry.level} · ${entry.date}`;
+      meta.appendChild(footer);
+
+      card.appendChild(meta);
+      els.scrapbookGrid.appendChild(card);
+    }
+  }
+
   // ----- Main loop -----
   function loop(timestamp) {
     if (!game.running) return;
@@ -624,11 +896,28 @@
       return;
     }
     if (!game.paused) {
-      tickTimer(timestamp);
-      update();
-      render();
+      if (game.selfie.active) {
+        // World freezes during the selfie — timer + physics paused.
+        // Reset lastTimestamp so paused time isn't counted when selfie ends.
+        game.lastTimestamp = null;
+        tickSelfie();
+        render();
+      } else {
+        tickTimer(timestamp);
+        update();
+        render();
+      }
     }
     game.rafId = requestAnimationFrame(loop);
+  }
+
+  function tickSelfie() {
+    game.selfie.frame++;
+    // The actual snap (toDataURL) happens inside render(), AFTER the scene
+    // is drawn but BEFORE the polaroid overlay — so the photo is clean.
+    if (game.selfie.frame >= SELFIE_TOTAL_FRAMES) {
+      game.selfie.active = false;
+    }
   }
 
   function tickTimer(timestamp) {
@@ -853,6 +1142,9 @@
       renderHighwayBackground();
     }
 
+    // Billboards (scenery layer, drawn behind obstacles/collectibles)
+    drawBillboards();
+
     // Obstacles
     for (const ob of game.obstacles) {
       if (ob.hit) continue;
@@ -885,9 +1177,24 @@
 
     ctx.restore();
 
+    // ===== Selfie snap point =====
+    // The toDataURL must happen NOW — after the scene is drawn but before
+    // any selfie overlay (polaroid frame, flash, text). That way the
+    // captured photo is a clean shot of the road-trip moment.
+    if (game.selfie.active && !game.selfie.snapped && game.selfie.frame >= SNAP_FRAME) {
+      game.selfie.snapped = true;
+      captureSelfie();
+    }
+
     // Pickup labels render outside the screen-shake transform so the
     // floating "+points" text stays steady and legible even on hit.
     drawPickupLabels();
+
+    // Polaroid frame + flash overlay during selfie (drawn LAST so it
+    // sits on top of everything, including pickup labels).
+    if (game.selfie.active) {
+      drawSelfieOverlay();
+    }
   }
 
   function drawPlayer() {
@@ -1216,6 +1523,92 @@
     ctx.fillText(emojis[type], x + 14, y + 16);
   }
 
+  function drawBillboards() {
+    for (const b of game.billboards) {
+      const sx = b.x - game.worldX;
+      if (sx < -180 || sx > CANVAS_W + 40) continue;
+      const w = 140;
+      const h = 80;
+      const baseY = GROUND_Y - 130;
+      // Twin posts
+      ctx.fillStyle = "#5a3a1f";
+      ctx.fillRect(sx + 14, baseY + h, 6, 50);
+      ctx.fillRect(sx + w - 20, baseY + h, 6, 50);
+      // Sign backdrop
+      ctx.fillStyle = b.bg;
+      ctx.fillRect(sx, baseY, w, h);
+      // Frame
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(sx, baseY, w, h);
+      // Decorative star in corner
+      ctx.fillStyle = b.fg;
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "top";
+      ctx.fillText("★", sx + 6, baseY + 4);
+      // Text
+      ctx.fillStyle = b.fg;
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(b.l1, sx + w / 2, baseY + 28);
+      ctx.font = "12px sans-serif";
+      ctx.fillText(b.l2, sx + w / 2, baseY + 52);
+    }
+  }
+
+  function drawSelfieOverlay() {
+    const f = game.selfie.frame;
+    const total = SELFIE_TOTAL_FRAMES;
+
+    // 1) Vignette + polaroid frame around the canvas
+    // Ease-in for the first 12 frames, hold, ease-out for the last 12
+    const inAlpha  = Math.min(1, f / 12);
+    const outAlpha = Math.min(1, (total - f) / 12);
+    const alpha = Math.min(inAlpha, outAlpha);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    // Polaroid border (thick white edges, extra-thick at the bottom)
+    const top = 18, side = 18, bottom = 56;
+    ctx.fillStyle = "#fefefe";
+    ctx.fillRect(0, 0, CANVAS_W, top);
+    ctx.fillRect(0, CANVAS_H - bottom, CANVAS_W, bottom);
+    ctx.fillRect(0, 0, side, CANVAS_H);
+    ctx.fillRect(CANVAS_W - side, 0, side, CANVAS_H);
+
+    // Tape strips at the corners for charm
+    ctx.fillStyle = "rgba(255, 214, 10, 0.75)";
+    ctx.fillRect(8, 4, 60, 12);
+    ctx.fillRect(CANVAS_W - 68, 4, 60, 12);
+
+    // Polaroid caption (handwritten-feel)
+    ctx.fillStyle = "#222";
+    ctx.font = "italic bold 20px 'Trebuchet MS', sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(
+      game.selfie.snapped
+        ? `📸 Road Trip Memory!`
+        : `📸 Smile, Asha!`,
+      CANVAS_W / 2,
+      CANVAS_H - bottom / 2
+    );
+    ctx.restore();
+
+    // 2) Quick white flash AT the snap frame (3-frame window)
+    if (f >= SNAP_FRAME && f <= SNAP_FRAME + 3) {
+      const flashAlpha = 1 - (f - SNAP_FRAME) / 4;
+      ctx.save();
+      ctx.globalAlpha = flashAlpha * 0.85;
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+      ctx.restore();
+    }
+  }
+
   function drawRoadsideSign(worldX, label) {
     const sx = worldX - game.worldX;
     if (sx < -200 || sx > CANVAS_W + 80) return;
@@ -1296,6 +1689,7 @@
     els.distanceFill.style.width = `${Math.min(100, (game.worldX / WORLD_LENGTH) * 100)}%`;
     els.score.textContent = game.score;
     els.levelDisplay.textContent = game.level;
+    if (els.selfiesLeft) els.selfiesLeft.textContent = game.selfiesLeft;
   }
 
   // ----- High Scores -----
@@ -1384,6 +1778,10 @@
       if (game.running) togglePause();
       return;
     }
+    if (e.key === "c" || e.key === "C") {
+      tryStartSelfie();
+      return;
+    }
     game.keys[e.key] = true;
   });
   window.addEventListener("keyup", (e) => {
@@ -1433,6 +1831,26 @@
     renderHighScores();
     showScreen("scores");
     els.gameoverOverlay.classList.add("hidden");
+  });
+
+  // ----- Scrapbook screen wiring -----
+  document.getElementById("btn-view-scrapbook").addEventListener("click", () => {
+    renderScrapbook();
+    showScreen("scrapbook");
+  });
+  document.getElementById("btn-back-from-scrapbook").addEventListener("click", () => {
+    showScreen("title");
+  });
+  document.getElementById("btn-reset-scrapbook").addEventListener("click", () => {
+    if (confirm("Clear the scrapbook? All saved selfies will be deleted.")) {
+      localStorage.removeItem(SCRAPBOOK_KEY);
+      renderScrapbook();
+    }
+  });
+  document.getElementById("btn-view-scrapbook-from-gameover").addEventListener("click", () => {
+    els.gameoverOverlay.classList.add("hidden");
+    renderScrapbook();
+    showScreen("scrapbook");
   });
 
   // ----- Bootstrap -----
