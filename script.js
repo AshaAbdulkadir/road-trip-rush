@@ -40,6 +40,45 @@
     finishFlag:  75,
   };
 
+  // ----- Difficulty -----
+  const DIFFICULTY_KEY = "roadTripRush.difficulty.v1";
+  const DIFFICULTIES = {
+    easy:   { label: "Easy",          timer: 80, damage: 12, obstacleSpacing: 1.3, scrollMult: 0.9 },
+    normal: { label: "Road-Trip",     timer: 60, damage: 18, obstacleSpacing: 1.0, scrollMult: 1.0 },
+    hard:   { label: "Sunset Sprint", timer: 45, damage: 24, obstacleSpacing: 0.8, scrollMult: 1.1 },
+  };
+  function loadDifficulty() {
+    const stored = localStorage.getItem(DIFFICULTY_KEY);
+    return DIFFICULTIES[stored] ? stored : "normal";
+  }
+  function saveDifficulty(key) {
+    if (DIFFICULTIES[key]) localStorage.setItem(DIFFICULTY_KEY, key);
+  }
+
+  // ----- Combo / multiplier -----
+  // Streak resets to 0 on obstacle hit; multiplier scales with streak length.
+  const COMBO_TIERS = [
+    { threshold: 7, mult: 3 },
+    { threshold: 3, mult: 2 },
+    { threshold: 0, mult: 1 },
+  ];
+  function comboMultiplierFor(count) {
+    for (const tier of COMBO_TIERS) if (count >= tier.threshold) return tier.mult;
+    return 1;
+  }
+
+  // ----- Power-ups -----
+  const POWERUP_DEFS = {
+    coffee: { emoji: "☕", color: "#8b5a2b", duration: 300, label: "Caffeine Rush" },
+    gps:    { emoji: "🗺️", color: "#4ca64c", duration: 240, label: "GPS Slowdown" },
+    tire:   { emoji: "🛞", color: "#333",    duration: 0,   label: "Spare Tire"   }, // shield until next hit
+    star:   { emoji: "🎆", color: "#ffd60a", duration: 180, label: "Star-Spangled" },
+    gas:    { emoji: "⛽", color: "#d7263d", duration: 0,   label: "+30 Health"   }, // instant
+  };
+  const POWERUP_KEYS = Object.keys(POWERUP_DEFS);
+  const POWERUP_SPACING_MIN = 1200;
+  const POWERUP_SPACING_MAX = 1800;
+
   // ----- Audio -----
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -116,6 +155,26 @@
     playTone(880, "sine", 0.1, 0.18);
   }
 
+  function sfxHonk() {
+    // Two-tone car honk
+    playTone(440, "square", 0.18, 0.3);
+    setTimeout(() => playTone(370, "square", 0.18, 0.3), 100);
+  }
+
+  function sfxPowerUp() {
+    // Ascending arpeggio
+    [523, 659, 784, 1047].forEach((f, i) => {
+      setTimeout(() => playTone(f, "triangle", 0.1, 0.22), i * 50);
+    });
+  }
+
+  function sfxCombo(tier) {
+    // Higher-pitched ding for higher tiers
+    const base = 880 + (tier - 1) * 220;
+    playTone(base, "sine", 0.1, 0.22);
+    setTimeout(() => playTone(base * 1.5, "sine", 0.12, 0.18), 60);
+  }
+
   // ----- DOM -----
   const screens = {
     title: document.getElementById("title-screen"),
@@ -143,6 +202,9 @@
     selfiesLeft: document.getElementById("selfies-left"),
     scrapbookGrid: document.getElementById("scrapbook-grid"),
     noScrapbook: document.getElementById("no-scrapbook"),
+    comboBadge: document.getElementById("combo-badge"),
+    activePowerups: document.getElementById("active-powerups"),
+    difficultyButtons: () => document.querySelectorAll(".diff-btn"),
   };
 
   // ----- State -----
@@ -175,6 +237,13 @@
     streetlights: [],
     stars: [],
     billboards: [],
+    powerUps: [],            // pickups placed in the world
+    activePowerUps: [],      // currently-active effects with framesLeft
+    confetti: [],            // win-screen confetti
+    shield: false,            // from spare-tire pickup
+    combo: { count: 0, multiplier: 1 },
+    honk: { ttl: 0 },         // visual cue for honk
+    difficulty: "normal",
     keys: {},
     pickupLabels: [],
     selfiesLeft: SELFIES_PER_RUN,
@@ -196,12 +265,14 @@
     game.mountains.length = 0;
 
     // Obstacles: pothole, cone, roadblock, low-fuel
+    // Spacing tightens with harder difficulties.
     const obstacleTypes = ["pothole", "cone", "roadblock", "fuel"];
+    const spacingMult = DIFFICULTIES[game.difficulty].obstacleSpacing;
     let x = 600;
     while (x < WORLD_LENGTH - 400) {
       const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
       game.obstacles.push(makeObstacle(type, x));
-      x += 220 + Math.floor(Math.random() * 220);
+      x += Math.floor((220 + Math.floor(Math.random() * 220)) * spacingMult);
     }
 
     // Collectibles: souvenir, snack, postcard, camera
@@ -235,6 +306,9 @@
 
     // Roadside billboards — photogenic, no collision
     placeBillboards(HIGHWAY_BILLBOARDS, "#1b3a8a", "#fff");
+
+    // Power-ups sprinkled along the road
+    placePowerUps();
   }
 
   const HIGHWAY_BILLBOARDS = [
@@ -255,6 +329,28 @@
     { l1: "🎆 Fireworks", l2: "Tonight @ 9" },
     { l1: "Skyline Hotel", l2: "Vacancy ✨" },
   ];
+
+  function placePowerUps() {
+    game.powerUps.length = 0;
+    let x = 900 + Math.random() * 400;
+    while (x < WORLD_LENGTH - 300) {
+      const type = POWERUP_KEYS[Math.floor(Math.random() * POWERUP_KEYS.length)];
+      game.powerUps.push(makePowerUp(type, x));
+      x += POWERUP_SPACING_MIN + Math.random() * (POWERUP_SPACING_MAX - POWERUP_SPACING_MIN);
+    }
+  }
+
+  function makePowerUp(type, worldX) {
+    return {
+      type,
+      x: worldX,
+      y: GROUND_Y - PLAYER_H - 40,
+      w: 32,
+      h: 32,
+      collected: false,
+      phase: Math.random() * Math.PI * 2,
+    };
+  }
 
   function placeBillboards(pool, bgColor, fgColor) {
     game.billboards.length = 0;
@@ -290,7 +386,9 @@
     game.particles = [];
     game.transition = { active: true, frames: 160 };
     game.selfie = { active: false, frame: 0, snapped: false };
-    // Note: selfiesLeft persists across levels — they were a run-wide budget.
+    // Note: selfiesLeft, combo, and activePowerUps all persist across the
+    // level break — they're run-wide. New pickups will be spawned by
+    // generateCityWorld() below via placePowerUps().
     generateCityWorld();
     updateHud();
     sfxWin();
@@ -307,11 +405,12 @@
 
     // City-specific obstacles (denser, tighter spacing)
     const cityObstacleTypes = ["manhole", "taxi", "hydrant", "barrier"];
+    const cityScale = DIFFICULTIES[game.difficulty].obstacleSpacing;
     let x = 500;
     while (x < WORLD_LENGTH - 400) {
       const type = cityObstacleTypes[Math.floor(Math.random() * cityObstacleTypes.length)];
       game.obstacles.push(makeCityObstacle(type, x));
-      x += 180 + Math.floor(Math.random() * 200);
+      x += Math.floor((180 + Math.floor(Math.random() * 200)) * cityScale);
     }
 
     // Collectibles — same structure, city-themed
@@ -356,6 +455,9 @@
 
     // Neon-styled billboards for the city
     placeBillboards(CITY_BILLBOARDS, "#220a3a", "#ffd60a");
+
+    // Power-ups in city level too
+    placePowerUps();
   }
 
   function makeCityObstacle(type, worldX) {
@@ -631,7 +733,8 @@
     game.level = 1;
     game.health = MAX_HEALTH;
     game.score = 0;
-    game.timeLeft = COUNTDOWN_SECONDS;
+    game.difficulty = loadDifficulty();
+    game.timeLeft = DIFFICULTIES[game.difficulty].timer;
     game.lastTimestamp = null;
     game.frame = 0;
     game.shake = { frames: 0, intensity: 0 };
@@ -641,6 +744,12 @@
     game.streetlights = [];
     game.stars = [];
     game.billboards = [];
+    game.powerUps = [];
+    game.activePowerUps = [];
+    game.confetti = [];
+    game.shield = false;
+    game.combo = { count: 0, multiplier: 1 };
+    game.honk = { ttl: 0 };
     game.selfiesLeft = SELFIES_PER_RUN;
     game.selfie = { active: false, frame: 0, snapped: false };
     game.paused = false;
@@ -665,6 +774,7 @@
     if (reachedDestination) {
       game.score += Math.round(game.health * 5);
       sfxWin();
+      spawnWinConfetti();
     } else {
       sfxLose();
     }
@@ -925,8 +1035,11 @@
       game.lastTimestamp = timestamp;
       return;
     }
-    const delta = (timestamp - game.lastTimestamp) / 1000;
+    let delta = (timestamp - game.lastTimestamp) / 1000;
     game.lastTimestamp = timestamp;
+
+    // GPS power-up halves the rate the timer drains.
+    if (hasActivePowerUp("gps")) delta *= 0.5;
 
     const prevFloor = Math.ceil(game.timeLeft);
     game.timeLeft = Math.max(0, game.timeLeft - delta);
@@ -961,16 +1074,24 @@
     if (game.shake.frames > 0) game.shake.frames--;
     updateParticles();
 
+    // Tick active power-up timers and apply effects
+    tickActivePowerUps();
+
+    // Effective move speed = base × difficulty scroll × coffee bonus
+    let speedMult = DIFFICULTIES[game.difficulty].scrollMult;
+    if (hasActivePowerUp("coffee")) speedMult *= 1.35;
+    const effectiveSpeed = MOVE_SPEED * speedMult;
+
     // Horizontal movement — world scrolls when moving right past anchor
     const leftDown = game.keys["ArrowLeft"] || game.keys["a"] || game.keys["A"];
     const rightDown = game.keys["ArrowRight"] || game.keys["d"] || game.keys["D"];
 
     if (rightDown) {
-      game.worldX += MOVE_SPEED;
+      game.worldX += effectiveSpeed;
       game.player.facing = 1;
     }
     if (leftDown) {
-      game.worldX = Math.max(0, game.worldX - MOVE_SPEED * 0.85);
+      game.worldX = Math.max(0, game.worldX - effectiveSpeed * 0.85);
       game.player.facing = -1;
     }
 
@@ -1009,11 +1130,34 @@
       const obRect = { x: screenX, y: ob.y, w: ob.w, h: ob.h };
       if (rectsOverlap(playerRect, obRect) && game.player.iFrames === 0) {
         ob.hit = true;
-        game.health -= OBSTACLE_DAMAGE;
+
+        // Invincibility (star-spangled) absorbs damage entirely
+        if (hasActivePowerUp("star")) {
+          spawnParticles(game.player.x + PLAYER_W / 2, game.player.y + PLAYER_H / 2, "collect");
+          continue;
+        }
+
+        // Spare-tire shield absorbs one hit, then breaks
+        if (game.shield) {
+          game.shield = false;
+          spawnParticles(game.player.x + PLAYER_W / 2, game.player.y + PLAYER_H / 2, "hit");
+          game.player.iFrames = 30;
+          spawnPickupLabel("camera", 0, game.player.x + PLAYER_W / 2, game.player.y - 12);
+          continue;
+        }
+
+        game.health -= DIFFICULTIES[game.difficulty].damage;
         game.player.iFrames = 60;
         sfxHit();
         game.shake = { frames: 18, intensity: 7 };
         spawnParticles(game.player.x + PLAYER_W / 2, game.player.y + PLAYER_H / 2, "hit");
+
+        // Hits break the combo streak
+        if (game.combo.count > 0) {
+          game.combo.count = 0;
+          game.combo.multiplier = 1;
+        }
+
         if (game.health <= 0) {
           game.health = 0;
           updateHud();
@@ -1031,10 +1175,31 @@
       const coRect = { x: screenX, y: co.y, w: co.w, h: co.h };
       if (rectsOverlap(playerRect, coRect)) {
         co.collected = true;
-        game.score += co.points;
+        // Combo: bump streak, recalc multiplier, ding if we crossed a tier
+        const prevMult = game.combo.multiplier;
+        game.combo.count++;
+        game.combo.multiplier = comboMultiplierFor(game.combo.count);
+        if (game.combo.multiplier > prevMult) {
+          sfxCombo(game.combo.multiplier);
+        }
+        const earned = co.points * game.combo.multiplier;
+        game.score += earned;
         sfxCollect();
         spawnParticles(screenX + co.w / 2, co.y + co.h / 2, "collect");
-        spawnPickupLabel(co.type, co.points, screenX + co.w / 2, co.y);
+        spawnPickupLabel(co.type, earned, screenX + co.w / 2, co.y);
+      }
+    }
+
+    // Power-up pickups
+    for (const pu of game.powerUps) {
+      if (pu.collected) continue;
+      const screenX = pu.x - game.worldX;
+      if (screenX < -200 || screenX > CANVAS_W + 200) continue;
+      const puRect = { x: screenX, y: pu.y, w: pu.w, h: pu.h };
+      if (rectsOverlap(playerRect, puRect)) {
+        pu.collected = true;
+        applyPowerUp(pu.type);
+        spawnParticles(screenX + pu.w / 2, pu.y + pu.h / 2, "collect");
       }
     }
 
@@ -1053,6 +1218,62 @@
         endGame(true);
       }
     }
+  }
+
+  // ----- Power-up effects -----
+  function hasActivePowerUp(type) {
+    return game.activePowerUps.some((p) => p.type === type && p.framesLeft > 0);
+  }
+
+  function tickActivePowerUps() {
+    for (let i = game.activePowerUps.length - 1; i >= 0; i--) {
+      game.activePowerUps[i].framesLeft--;
+      if (game.activePowerUps[i].framesLeft <= 0) {
+        game.activePowerUps.splice(i, 1);
+      }
+    }
+    if (game.honk.ttl > 0) game.honk.ttl--;
+  }
+
+  function applyPowerUp(type) {
+    const def = POWERUP_DEFS[type];
+    sfxPowerUp();
+    spawnPickupLabel("camera", 0, game.player.x + PLAYER_W / 2, game.player.y - 20);
+    // Use a tiny floating label that says the power-up name
+    game.pickupLabels.push({
+      base: `${def.emoji} ${def.label} `,
+      pts: "",
+      x: game.player.x + PLAYER_W / 2,
+      y: game.player.y - 28,
+      ttl: 120,
+      maxTtl: 120,
+    });
+
+    switch (type) {
+      case "gas":
+        game.health = Math.min(MAX_HEALTH, game.health + 30);
+        updateHud();
+        return;
+      case "tire":
+        game.shield = true;
+        return;
+      default:
+        // Replace any existing instance of same type so duration refreshes
+        const idx = game.activePowerUps.findIndex((p) => p.type === type);
+        if (idx >= 0) game.activePowerUps.splice(idx, 1);
+        game.activePowerUps.push({
+          type,
+          framesLeft: def.duration,
+          maxFrames: def.duration,
+        });
+        return;
+    }
+  }
+
+  function honk() {
+    if (!game.running) return;
+    sfxHonk();
+    game.honk.ttl = 28;
   }
 
   // ----- Particles -----
@@ -1162,11 +1383,34 @@
       drawCollectible(co.type, sx, bobY);
     }
 
+    // Power-ups (with bob and a soft halo)
+    for (const pu of game.powerUps) {
+      if (pu.collected) continue;
+      const sx = pu.x - game.worldX;
+      if (sx < -80 || sx > CANVAS_W + 80) continue;
+      const bobY = pu.y + Math.sin(game.frame * 0.07 + pu.phase) * 5;
+      drawPowerUp(pu.type, sx, bobY);
+    }
+
+    // Star-spangled invincibility aura behind the car
+    if (hasActivePowerUp("star")) {
+      drawStarAura();
+    }
+
     // Player
     drawPlayer();
 
+    // Spare-tire shield indicator
+    if (game.shield) drawShieldRing();
+
+    // Honk speech bubble (briefly)
+    if (game.honk.ttl > 0) drawHonkBubble();
+
     // Particles drawn on top of everything
     drawParticles();
+
+    // Win-screen confetti (only after destination reached)
+    drawConfetti();
 
     // Destination flag near the end
     const flagWorldX = WORLD_LENGTH - 80;
@@ -1523,6 +1767,145 @@
     ctx.fillText(emojis[type], x + 14, y + 16);
   }
 
+  function drawPowerUp(type, x, y) {
+    const def = POWERUP_DEFS[type];
+    // Soft pulsing aura
+    const pulse = 0.5 + Math.sin(game.frame * 0.15) * 0.15;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.fillStyle = def.color;
+    ctx.beginPath();
+    ctx.arc(x + 16, y + 16, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // White medallion behind
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.arc(x + 16, y + 16, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = def.color;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Emoji icon
+    ctx.font = "22px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(def.emoji, x + 16, y + 18);
+  }
+
+  function drawStarAura() {
+    const p = game.player;
+    ctx.save();
+    const pulse = 0.4 + Math.sin(game.frame * 0.25) * 0.2;
+    ctx.globalAlpha = pulse;
+    const grad = ctx.createRadialGradient(
+      p.x + PLAYER_W / 2, p.y + PLAYER_H / 2, 8,
+      p.x + PLAYER_W / 2, p.y + PLAYER_H / 2, 70
+    );
+    grad.addColorStop(0, "#ffd60a");
+    grad.addColorStop(0.5, "rgba(255, 80, 80, 0.6)");
+    grad.addColorStop(1, "rgba(27, 58, 138, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x + PLAYER_W / 2, p.y + PLAYER_H / 2, 70, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Random sparkles
+    if (Math.random() < 0.5) {
+      game.particles.push({
+        x: p.x + Math.random() * PLAYER_W,
+        y: p.y + Math.random() * PLAYER_H,
+        vx: (Math.random() - 0.5) * 1.5,
+        vy: -1 - Math.random() * 1.5,
+        life: 1, decay: 0.07,
+        r: 2 + Math.random() * 2,
+        color: ["#ffd60a", "#fff", "#ff7b7b"][Math.floor(Math.random() * 3)],
+        shape: "star",
+      });
+    }
+  }
+
+  function drawShieldRing() {
+    const p = game.player;
+    ctx.save();
+    ctx.globalAlpha = 0.45 + Math.sin(game.frame * 0.2) * 0.15;
+    ctx.strokeStyle = "#9fd6ff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(p.x + PLAYER_W / 2, p.y + PLAYER_H / 2, PLAYER_W / 1.55, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawHonkBubble() {
+    const p = game.player;
+    const x = p.x + PLAYER_W + 4;
+    const y = p.y - 20;
+    ctx.fillStyle = "#fff";
+    ctx.strokeStyle = "#222";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + 50, y);
+    ctx.lineTo(x + 50, y + 22);
+    ctx.lineTo(x + 14, y + 22);
+    ctx.lineTo(x + 8, y + 30);
+    ctx.lineTo(x + 10, y + 22);
+    ctx.lineTo(x, y + 22);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#222";
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("HONK!", x + 25, y + 11);
+  }
+
+  function spawnWinConfetti() {
+    const colors = ["#d7263d", "#fff", "#1b3a8a", "#ffd60a", "#ff7b00"];
+    for (let i = 0; i < 90; i++) {
+      game.confetti.push({
+        x: Math.random() * CANVAS_W,
+        y: -10 - Math.random() * 40,
+        vx: (Math.random() - 0.5) * 3,
+        vy: 1 + Math.random() * 3,
+        rot: Math.random() * Math.PI * 2,
+        spin: (Math.random() - 0.5) * 0.3,
+        w: 6 + Math.random() * 5,
+        h: 3 + Math.random() * 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        life: 1, decay: 0.005,
+      });
+    }
+  }
+
+  function drawConfetti() {
+    if (game.confetti.length === 0) return;
+    for (let i = game.confetti.length - 1; i >= 0; i--) {
+      const c = game.confetti[i];
+      c.x += c.vx;
+      c.y += c.vy;
+      c.vy += 0.07;
+      c.rot += c.spin;
+      c.life -= c.decay;
+      if (c.life <= 0 || c.y > CANVAS_H + 20) {
+        game.confetti.splice(i, 1);
+        continue;
+      }
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, c.life);
+      ctx.translate(c.x, c.y);
+      ctx.rotate(c.rot);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+      ctx.restore();
+    }
+  }
+
   function drawBillboards() {
     for (const b of game.billboards) {
       const sx = b.x - game.worldX;
@@ -1690,6 +2073,40 @@
     els.score.textContent = game.score;
     els.levelDisplay.textContent = game.level;
     if (els.selfiesLeft) els.selfiesLeft.textContent = game.selfiesLeft;
+    updateComboBadge();
+    updateActivePowerUpsHud();
+  }
+
+  function updateComboBadge() {
+    if (!els.comboBadge) return;
+    if (game.combo.multiplier > 1) {
+      els.comboBadge.textContent = `×${game.combo.multiplier}  (${game.combo.count})`;
+      els.comboBadge.classList.remove("hidden");
+      els.comboBadge.dataset.tier = game.combo.multiplier;
+    } else {
+      els.comboBadge.classList.add("hidden");
+    }
+  }
+
+  function updateActivePowerUpsHud() {
+    if (!els.activePowerups) return;
+    els.activePowerups.innerHTML = "";
+    if (game.shield) {
+      const pill = document.createElement("span");
+      pill.className = "pu-pill pu-shield";
+      pill.textContent = `🛞 Shield`;
+      els.activePowerups.appendChild(pill);
+    }
+    for (const p of game.activePowerUps) {
+      const def = POWERUP_DEFS[p.type];
+      const pct = Math.max(0, (p.framesLeft / p.maxFrames) * 100);
+      const pill = document.createElement("span");
+      pill.className = "pu-pill";
+      pill.innerHTML = `<span class="pu-icon">${def.emoji}</span>` +
+                       `<span class="pu-bar"><span style="width:${pct}%"></span></span>`;
+      pill.title = def.label;
+      els.activePowerups.appendChild(pill);
+    }
   }
 
   // ----- High Scores -----
@@ -1782,6 +2199,10 @@
       tryStartSelfie();
       return;
     }
+    if (e.key === "h" || e.key === "H") {
+      honk();
+      return;
+    }
     game.keys[e.key] = true;
   });
   window.addEventListener("keyup", (e) => {
@@ -1852,6 +2273,22 @@
     renderScrapbook();
     showScreen("scrapbook");
   });
+
+  // ----- Difficulty selector wiring -----
+  function refreshDifficultyButtons() {
+    const current = loadDifficulty();
+    for (const btn of els.difficultyButtons()) {
+      const key = btn.dataset.difficulty;
+      btn.classList.toggle("selected", key === current);
+    }
+  }
+  for (const btn of els.difficultyButtons()) {
+    btn.addEventListener("click", () => {
+      saveDifficulty(btn.dataset.difficulty);
+      refreshDifficultyButtons();
+    });
+  }
+  refreshDifficultyButtons();
 
   // ----- Bootstrap -----
   setupInitialsInputs();

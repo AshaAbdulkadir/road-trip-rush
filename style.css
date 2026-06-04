@@ -392,3 +392,117 @@ button.small {
   min-width: 14px;
   font-weight: bold;
 }
+
+/* ----- Difficulty picker ----- */
+.difficulty-picker {
+  background: var(--white);
+  border-left: 6px solid var(--blue);
+  border-right: 6px solid var(--red);
+  padding: 14px 20px 18px;
+  border-radius: 12px;
+  max-width: 720px;
+  margin: 14px auto;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.difficulty-picker h3 {
+  margin: 0 0 10px;
+  color: var(--blue);
+}
+.diff-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+.diff-btn {
+  flex: 1 1 160px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 2px solid #ccc;
+  background: #fff;
+  color: #444;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.08s ease, border-color 0.12s ease, color 0.12s ease;
+}
+.diff-btn small {
+  display: block;
+  font-weight: normal;
+  font-size: 0.78rem;
+  color: #888;
+  margin-top: 3px;
+}
+.diff-btn:hover {
+  transform: translateY(-2px);
+}
+.diff-btn.selected {
+  border-color: var(--red);
+  color: var(--red);
+  background: #fff7f7;
+  box-shadow: 0 0 0 3px rgba(215, 38, 61, 0.18);
+}
+.diff-btn.selected small { color: var(--blue); }
+
+/* ----- Combo badge ----- */
+#combo-badge {
+  background: var(--sunshine);
+  color: var(--red);
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 1rem;
+  border: 2px solid var(--red);
+  animation: combo-pop 0.4s ease;
+}
+#combo-badge[data-tier="3"] {
+  background: var(--red);
+  color: var(--sunshine);
+  border-color: var(--sunshine);
+}
+@keyframes combo-pop {
+  0%   { transform: scale(1.5); }
+  60%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+
+/* ----- Active power-up pills (below HUD) ----- */
+.active-powerups {
+  display: flex;
+  gap: 8px;
+  background: #0d1130;
+  padding: 6px 12px;
+  min-height: 8px;
+  border-bottom: 2px solid var(--blue);
+}
+.pu-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 2px 10px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: bold;
+}
+.pu-pill.pu-shield {
+  background: rgba(159, 214, 255, 0.25);
+  color: #cfe9ff;
+}
+.pu-icon { font-size: 1.05rem; }
+.pu-bar {
+  display: inline-block;
+  width: 50px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.pu-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--sunshine);
+  transition: width 0.1s linear;
+}

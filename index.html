@@ -41,8 +41,24 @@
           <li><kbd>→</kbd> / <kbd>D</kbd> — Drive right</li>
           <li><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>Space</kbd> — Hop over obstacles</li>
           <li><kbd>C</kbd> — 📸 Take a selfie (3 per run)</li>
+          <li><kbd>H</kbd> — 🔊 Honk</li>
           <li><kbd>P</kbd> — Pause / Resume</li>
         </ul>
+      </div>
+
+      <div class="difficulty-picker">
+        <h3>Difficulty</h3>
+        <div class="diff-row">
+          <button class="diff-btn" data-difficulty="easy">
+            🌴 Easy<br><small>80s · gentler</small>
+          </button>
+          <button class="diff-btn" data-difficulty="normal">
+            🚗 Road-Trip<br><small>60s · balanced</small>
+          </button>
+          <button class="diff-btn" data-difficulty="hard">
+            🌅 Sunset Sprint<br><small>45s · brutal</small>
+          </button>
+        </div>
       </div>
 
       <div class="button-row">
@@ -65,8 +81,11 @@
         <div class="hud-item">Time: <span id="timer-display">60</span>s</div>
         <div class="hud-item">Level: <span id="level-display">1</span></div>
         <div class="hud-item">📸 <span id="selfies-left">3</span></div>
+        <div class="hud-item hidden" id="combo-badge" data-tier="1">×1</div>
         <button id="btn-pause" class="small">Pause</button>
       </div>
+
+      <div id="active-powerups" class="active-powerups"></div>
 
       <canvas id="game-canvas" width="900" height="420"></canvas>
 
