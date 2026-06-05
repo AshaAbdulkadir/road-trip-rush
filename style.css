@@ -30,15 +30,1470 @@ html, body {
   background-attachment: fixed;
 }
 
+/* When the title screen is the active screen, blend the body background
+   with the cinematic theme so any overflow shows navy instead of pink stripes. */
+body:has(#title-screen.active) {
+  background: #0a1a44;
+}
+
 #app {
   max-width: 1000px;
   margin: 0 auto;
   padding: 24px 20px 60px;
 }
+/* Remove #app padding so the title-screen can fill the viewport seamlessly */
+#app:has(#title-screen.active) {
+  padding: 0;
+  max-width: none;
+}
 
 /* ----- Screens ----- */
 .screen { display: none; }
 .screen.active { display: block; }
+
+/* ===================================================================
+   Title Screen — Cinematic 4th of July Arcade Edition
+   Layered cinematic background, game-logo hero, mission card,
+   collectible vehicle cards, mode-card difficulty, glowing CTA.
+   Responsive grid; reduce-motion overrides at bottom.
+   =================================================================== */
+
+/* Local color tokens for the arcade theme (extends :root vars from top). */
+.title-screen {
+  --tx-navy:    #0a0e2c;
+  --tx-blue:    #1b3a8a;
+  --tx-red:     #d7263d;
+  --tx-gold:    #ffd60a;
+  --tx-amber:   #ffb700;
+  --tx-orange:  #ff7b00;
+  --tx-pink:    #ff4080;
+  --tx-cream:   #fff7e6;
+  --tx-glow:    0 0 18px rgba(255, 214, 10, 0.55);
+}
+
+/* Escape the #app 1000px-wide constraint so the cinematic background
+   fills the full viewport edge-to-edge, like the reference comp. */
+.title-screen.active {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(3px, 0.5vh, 8px);
+  position: relative;
+  min-height: 100dvh;
+  padding: clamp(6px, 0.8vh, 10px) clamp(14px, 2.4vw, 32px) clamp(8px, 1vh, 14px);
+  overflow: hidden;
+  color: var(--tx-cream);
+
+  /* Break out of #app's max-width: 1000px center column */
+  width: 100vw;
+  margin-left:  calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+}
+
+/* ============================================================
+   SINGLE-COLUMN FOREGROUND LAYOUT — matches reference comp
+   ============================================================ */
+.title-header {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 920px;
+  text-align: center;
+  padding: 0;
+}
+
+/* ============================================================
+   ANIMATED CINEMATIC BACKGROUND
+   ============================================================ */
+.title-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* Layered desert-sunset sky:
+   - Top half: cool blue night
+   - Middle: lavender/pink transition
+   - Bottom horizon: warm orange/red glow from setting sun */
+.bg-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    /* Sun glow at center-bottom of the sky */
+    radial-gradient(ellipse at 50% 80%, rgba(255, 200, 80, 0.60) 0%, transparent 40%),
+    /* Pink/orange clouds */
+    radial-gradient(ellipse at 25% 70%, rgba(255, 150, 100, 0.30) 0%, transparent 35%),
+    radial-gradient(ellipse at 75% 60%, rgba(255, 120, 180, 0.30) 0%, transparent 38%),
+    /* Cool tints */
+    radial-gradient(ellipse at 20% 18%, rgba(120, 64, 200, 0.25) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 22%, rgba(180, 80, 200, 0.20) 0%, transparent 50%),
+    /* Base sky from deep night blue → sunset orange */
+    linear-gradient(180deg,
+      #0a1a44 0%,
+      #1f3b8c 18%,
+      #4359a8 40%,
+      #8a5fa5 58%,
+      #d68856 75%,
+      #f0a05a 88%,
+      #c2643a 100%);
+}
+
+/* Light rays fanning out from the horizon sun */
+.bg-rays {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  width: 1400px;
+  height: 800px;
+  transform: translateX(-50%);
+  background:
+    conic-gradient(from 200deg at 50% 100%,
+      transparent 0deg,
+      rgba(255, 214, 10, 0) 18deg,
+      rgba(255, 214, 10, 0.12) 22deg,
+      rgba(255, 214, 10, 0) 26deg,
+      transparent 35deg,
+      rgba(255, 183, 0, 0.10) 42deg,
+      rgba(255, 183, 0, 0) 46deg,
+      transparent 60deg,
+      rgba(255, 123, 0, 0.10) 70deg,
+      rgba(255, 123, 0, 0) 74deg,
+      transparent 90deg,
+      rgba(255, 214, 10, 0.10) 100deg,
+      rgba(255, 214, 10, 0) 104deg,
+      transparent 120deg,
+      rgba(255, 183, 0, 0.08) 130deg,
+      rgba(255, 183, 0, 0) 134deg,
+      transparent 160deg);
+  filter: blur(2px);
+  opacity: 0.85;
+  animation: bg-rays-rotate 30s linear infinite;
+  transform-origin: 50% 100%;
+}
+@keyframes bg-rays-rotate {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to   { transform: translateX(-50%) rotate(360deg); }
+}
+
+/* Vignette over everything to focus the eye on center content */
+.bg-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 45%,
+    transparent 30%,
+    rgba(0, 0, 0, 0.20) 70%,
+    rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+}
+
+/* ============================================================
+   DECORATIVE SCENE PROPS (all pure CSS — no image assets)
+   - American flag + pole on the left
+   - Route USA 1776 highway shield on a post
+   - Cactus silhouette
+   - Vintage suitcase with stickers on the right
+   - "FREEDOM FUN ADVENTURE" stamp badge
+   - Dotted route trail across the sky
+   - GPS pin markers
+   ============================================================ */
+
+/* ----- American flag waving on a pole ----- */
+.bg-flag {
+  position: absolute;
+  top: 38%;
+  left: clamp(8px, 2vw, 28px);
+  width: clamp(60px, 7vw, 100px);
+  height: clamp(50px, 7vw, 80px);
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,0.45));
+  animation: flag-wave 4s ease-in-out infinite;
+  transform-origin: left center;
+}
+.bg-flag-pole {
+  position: absolute;
+  left: -4px;
+  top: -30px;
+  width: 4px;
+  height: clamp(100px, 14vw, 160px);
+  background: linear-gradient(180deg, #d4d4d4 0%, #888 100%);
+  border-radius: 2px;
+}
+.bg-flag-pole::after {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: -3px;
+  width: 10px;
+  height: 10px;
+  background: var(--tx-gold);
+  border-radius: 50%;
+  box-shadow: 0 0 6px var(--tx-amber);
+}
+.bg-flag-cloth {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(180deg,
+    #d7263d 0px, #d7263d 8%,
+    #ffffff 8%, #ffffff 16%);
+  border: 1px solid rgba(0,0,0,0.2);
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.15);
+}
+.bg-flag-canton {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 42%;
+  height: 54%;
+  background:
+    radial-gradient(circle, #fff 0.5px, transparent 1.5px) 0 0 / 9px 9px,
+    radial-gradient(circle, #fff 0.5px, transparent 1.5px) 4.5px 4.5px / 9px 9px,
+    #1b3a8a;
+}
+@keyframes flag-wave {
+  0%, 100% { transform: skewY(0deg)    rotate(0deg); }
+  50%      { transform: skewY(-2deg) rotate(0.5deg); }
+}
+
+/* ----- Route USA 1776 highway shield on a post ----- */
+.bg-route-sign {
+  position: absolute;
+  left: clamp(20px, 4vw, 60px);
+  top: 16%;
+  width: clamp(80px, 9vw, 120px);
+  filter: drop-shadow(0 6px 10px rgba(0,0,0,0.5));
+  animation: route-sway 7s ease-in-out infinite;
+  transform-origin: 50% 100%;
+}
+.bg-route-shield {
+  width: 100%;
+  aspect-ratio: 0.95 / 1;
+  background:
+    linear-gradient(180deg, #2244a8 0%, #15296b 100%);
+  /* Shield outline shape */
+  clip-path: polygon(
+    50% 0%, 95% 12%, 100% 35%, 95% 65%,
+    80% 85%, 50% 100%, 20% 85%, 5% 65%,
+    0% 35%, 5% 12%);
+  border: 2px solid rgba(255,255,255,0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding-top: 10%;
+  color: #fff;
+  font-family: "Impact", "Arial Black", sans-serif;
+  text-align: center;
+  position: relative;
+}
+.bg-route-route {
+  font-size: clamp(0.5rem, 1.1vw, 0.7rem);
+  font-weight: 900;
+  letter-spacing: 1.5px;
+}
+.bg-route-usa {
+  font-size: clamp(0.55rem, 1.2vw, 0.75rem);
+  font-weight: 900;
+  letter-spacing: 1px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255,255,255,0.4);
+  width: 70%;
+  text-align: center;
+}
+.bg-route-num {
+  font-size: clamp(1.2rem, 2.6vw, 1.8rem);
+  font-weight: 900;
+  color: var(--tx-gold);
+  text-shadow: 1px 1px 0 #000;
+  line-height: 1;
+}
+.bg-route-post {
+  position: absolute;
+  left: 50%;
+  bottom: -80px;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 80px;
+  background: linear-gradient(180deg, #666 0%, #333 100%);
+  border-radius: 2px;
+}
+@keyframes route-sway {
+  0%, 100% { transform: rotate(-1deg); }
+  50%      { transform: rotate( 1deg); }
+}
+
+/* ----- Cactus silhouette below the flag ----- */
+.bg-cactus {
+  position: absolute;
+  left: clamp(80px, 11vw, 160px);
+  bottom: 90px;
+  width: clamp(30px, 4vw, 50px);
+  height: clamp(60px, 7vw, 90px);
+}
+.bg-cactus-trunk {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 35%;
+  height: 100%;
+  background: linear-gradient(90deg, #1d4f25 0%, #2e6b3a 50%, #1d4f25 100%);
+  border-radius: 50% / 8% 8% 4% 4%;
+  box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+}
+.bg-cactus-arm {
+  position: absolute;
+  width: 30%;
+  height: 35%;
+  background: linear-gradient(90deg, #1d4f25 0%, #2e6b3a 50%, #1d4f25 100%);
+  border-radius: 50% / 12% 12% 30% 30%;
+}
+.bg-cactus-arm-left {
+  left: 10%;
+  top: 30%;
+  transform: rotate(-90deg);
+  transform-origin: right center;
+}
+.bg-cactus-arm-right {
+  right: 10%;
+  top: 20%;
+  transform: rotate(90deg);
+  transform-origin: left center;
+}
+
+/* ----- Vintage suitcase on the right with travel stickers ----- */
+.bg-suitcase {
+  position: absolute;
+  right: clamp(10px, 3vw, 40px);
+  bottom: 80px;
+  width: clamp(100px, 13vw, 160px);
+  height: clamp(70px, 9vw, 110px);
+  filter: drop-shadow(0 8px 12px rgba(0,0,0,0.55));
+  transform: rotate(-3deg);
+}
+.bg-suitcase-handle {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36%;
+  height: 14px;
+  background: transparent;
+  border: 4px solid #6b4a25;
+  border-bottom: none;
+  border-radius: 18px 18px 0 0;
+}
+.bg-suitcase-body {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, #1f3573 0%, #15296b 100%);
+  border: 3px solid #a78b5a;
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 24px rgba(0,0,0,0.45),
+    inset 0 -2px 0 rgba(0,0,0,0.3);
+  position: relative;
+  overflow: hidden;
+}
+.bg-suitcase-clasp {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 12px;
+  background: linear-gradient(180deg, #d4a554, #8a6320);
+  border: 1px solid #4a3010;
+  border-radius: 2px;
+  transform: translateY(-50%);
+}
+.bg-suitcase-clasp:nth-child(1) { left: 20%; }
+.bg-suitcase-clasp:nth-child(2) { right: 20%; }
+.bg-suitcase-sticker {
+  position: absolute;
+  font-family: "Impact", "Arial Black", sans-serif;
+  font-weight: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.55rem, 1.3vw, 0.8rem);
+  letter-spacing: 1px;
+}
+.sticker-66 {
+  left: 12%;
+  top: 16%;
+  width: 28%;
+  aspect-ratio: 1;
+  background: #fff;
+  color: var(--tx-blue);
+  clip-path: polygon(
+    50% 0%, 95% 12%, 100% 35%, 95% 65%,
+    80% 85%, 50% 100%, 20% 85%, 5% 65%,
+    0% 35%, 5% 12%);
+  font-size: clamp(0.65rem, 1.6vw, 0.95rem);
+}
+.sticker-usa {
+  right: 8%;
+  top: 12%;
+  width: 30%;
+  height: 28%;
+  background: linear-gradient(90deg, var(--tx-red), #fff, var(--tx-blue));
+  color: var(--tx-navy);
+  border-radius: 4px;
+  transform: rotate(8deg);
+  border: 2px solid var(--tx-cream);
+  font-size: 0.65rem;
+}
+.sticker-tea {
+  right: 14%;
+  bottom: 14%;
+  width: 32%;
+  height: 22%;
+  background: var(--tx-gold);
+  color: var(--tx-navy);
+  border-radius: 4px;
+  transform: rotate(-6deg);
+  border: 2px solid #c48a00;
+  font-size: 0.7rem;
+}
+
+/* ----- FREEDOM FUN ADVENTURE rotated stamp badge ----- */
+.bg-freedom-badge {
+  position: absolute;
+  right: clamp(20px, 4vw, 60px);
+  top: 38%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: clamp(74px, 9vw, 120px);
+  aspect-ratio: 1;
+  background: linear-gradient(180deg, #d7263d 0%, #8a0f23 100%);
+  color: var(--tx-cream);
+  font-family: "Impact", "Arial Black", sans-serif;
+  font-size: clamp(0.55rem, 1.3vw, 0.75rem);
+  font-weight: 900;
+  letter-spacing: 1px;
+  line-height: 1.15;
+  text-align: center;
+  border: 2px dashed var(--tx-cream);
+  border-radius: 50%;
+  transform: rotate(-12deg);
+  box-shadow:
+    0 6px 10px rgba(0,0,0,0.4),
+    inset 0 0 16px rgba(0,0,0,0.3);
+}
+.bg-freedom-badge span { display: block; padding: 1px 0; }
+.bg-freedom-badge span:first-child { color: var(--tx-gold); font-size: 0.85em; }
+
+/* ----- Dotted route trail across the upper-right sky ----- */
+.bg-route-trail {
+  position: absolute;
+  right: 8%;
+  top: 28%;
+  width: 30%;
+  height: 30%;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.5) 1.5px, transparent 2px);
+  background-size: 18px 18px;
+  background-position: 0 0;
+  /* Curve the trail via a clip-path approximation */
+  clip-path: polygon(
+    0% 70%, 12% 40%, 28% 25%, 50% 18%,
+    72% 28%, 88% 50%, 100% 80%,
+    96% 86%, 78% 50%, 60% 32%,
+    40% 32%, 22% 48%, 8% 76%);
+}
+
+/* ----- GPS pin markers floating in the scene ----- */
+.bg-gps-pin {
+  position: absolute;
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+  filter: drop-shadow(0 0 8px rgba(255, 64, 128, 0.8));
+  animation: gps-bob 2.6s ease-in-out infinite;
+}
+.bg-gps-pin-a { right: 14%; top: 24%; }
+.bg-gps-pin-b { right: 28%; top: 44%; animation-delay: 1.2s; }
+@keyframes gps-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+
+/* Twinkling stars (positioned via CSS custom props per element) */
+.bg-star {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: 4px;
+  height: 4px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.9);
+  animation: star-twinkle 2.4s ease-in-out infinite;
+  animation-delay: var(--d);
+}
+@keyframes star-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50%      { opacity: 1;    transform: scale(1.3); }
+}
+
+/* CSS-only firework bursts (concentric pulses) */
+.bg-firework {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  filter: drop-shadow(0 0 6px var(--tx-gold));
+  animation: firework 6s ease-out infinite;
+}
+.bg-firework-a { left: 14%; top: 26%; color: var(--tx-gold);   animation-delay: 0s;   }
+.bg-firework-b { left: 72%; top: 16%; color: var(--tx-pink);   animation-delay: 1.5s; }
+.bg-firework-c { left: 50%; top: 30%; color: var(--tx-orange); animation-delay: 3.0s; }
+.bg-firework-d { left: 88%; top: 32%; color: #4af6ff;          animation-delay: 4.5s; }
+.bg-firework-e { left: 30%; top: 14%; color: #c560ff;          animation-delay: 5.4s; }
+
+.bg-star-big {
+  width: 6px !important;
+  height: 6px !important;
+  box-shadow: 0 0 12px 2px rgba(255, 214, 10, 0.9) !important;
+  background: var(--tx-gold) !important;
+}
+@keyframes firework {
+  0%   { box-shadow: 0 0 0 0 currentColor; opacity: 0; }
+  10%  { opacity: 1; }
+  60%  { box-shadow: 0 0 0 80px transparent; opacity: 0; }
+  100% { box-shadow: 0 0 0 0 transparent;    opacity: 0; }
+}
+
+/* Distant pulsing sun on the horizon */
+.bg-sun {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: clamp(120px, 22vw, 220px);
+  height: clamp(60px, 11vw, 110px);
+  background: radial-gradient(ellipse at center 100%,
+    var(--tx-gold) 0%,
+    var(--tx-amber) 40%,
+    var(--tx-orange) 70%,
+    transparent 90%);
+  border-radius: 50% 50% 0 0;
+  filter: drop-shadow(0 0 40px rgba(255, 183, 0, 0.6));
+  animation: sun-pulse 4s ease-in-out infinite;
+}
+@keyframes sun-pulse {
+  0%, 100% { transform: translateX(-50%) scale(1);    opacity: 0.85; }
+  50%      { transform: translateX(-50%) scale(1.05); opacity: 1; }
+}
+
+/* Red-rock SW desert butte silhouettes */
+.bg-mountains {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 70px;
+  height: 110px;
+  background:
+    /* Distant blue layer */
+    linear-gradient(135deg, transparent 49%, #4a3650 50%) 0    100% / 260px 90px no-repeat,
+    linear-gradient(225deg, transparent 49%, #4a3650 50%) 240px 100% / 260px 90px no-repeat,
+    linear-gradient(135deg, transparent 49%, #5a3a52 50%) 480px 100% / 320px 80px no-repeat,
+    linear-gradient(225deg, transparent 49%, #5a3a52 50%) 800px 100% / 260px 80px no-repeat,
+    linear-gradient(135deg, transparent 49%, #4a3650 50%) 1040px 100% / 280px 90px no-repeat,
+    linear-gradient(225deg, transparent 49%, #4a3650 50%) 1320px 100% / 260px 90px no-repeat,
+    linear-gradient(135deg, transparent 49%, #6a3a3a 50%) 1580px 100% / 240px 80px no-repeat;
+  opacity: 0.95;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4));
+}
+/* Front mesa silhouettes (red rock buttes) */
+.bg-mountains::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 0;
+  height: 70%;
+  background:
+    /* Flat-topped buttes for that Monument Valley feel */
+    linear-gradient(180deg, transparent 25%, #6a2a2a 25%) 60px  100% / 140px 60px no-repeat,
+    linear-gradient(180deg, transparent 30%, #7a3030 30%) 200px 100% / 180px 50px no-repeat,
+    linear-gradient(180deg, transparent 20%, #582020 20%) 380px 100% / 220px 65px no-repeat,
+    linear-gradient(180deg, transparent 35%, #6a2828 35%) 600px 100% / 160px 45px no-repeat,
+    linear-gradient(180deg, transparent 25%, #7a3030 25%) 760px 100% / 180px 55px no-repeat,
+    linear-gradient(180deg, transparent 30%, #582020 30%) 940px 100% / 240px 50px no-repeat,
+    linear-gradient(180deg, transparent 22%, #6a2828 22%) 1180px 100% / 200px 60px no-repeat,
+    linear-gradient(180deg, transparent 32%, #7a3030 32%) 1380px 100% / 180px 48px no-repeat,
+    linear-gradient(180deg, transparent 28%, #582020 28%) 1560px 100% / 220px 58px no-repeat;
+}
+
+/* Perspective road with center-line dashes scrolling toward camera */
+.bg-road {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: 0;
+  height: 70px;
+  background: linear-gradient(180deg, #1a1a1a 0%, #2c2c2c 30%, #1a1a1a 100%);
+  border-top: 2px solid #3a3a3a;
+  overflow: hidden;
+}
+.bg-road-stripe {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg,
+    var(--tx-gold) 0px, var(--tx-gold) 50px,
+    transparent 50px, transparent 110px);
+  height: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: road-scroll 1.4s linear infinite;
+  box-shadow: 0 0 12px rgba(255, 214, 10, 0.5);
+}
+@keyframes road-scroll {
+  from { background-position-x: 0; }
+  to   { background-position-x: 110px; }
+}
+
+/* ============================================================
+   GAME LOGO — striped flag banner backdrop + bold scripted title
+   ============================================================ */
+.logo-stripes {
+  position: relative;
+  margin: 0 auto;
+  width: min(900px, 96%);
+  height: 14px;
+  display: flex;
+  gap: 0;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.55));
+}
+.logo-stripe {
+  flex: 1;
+  position: relative;
+  /* Stripes flare outward like waving fabric */
+}
+.logo-stripe-r { background: linear-gradient(90deg, transparent 0%, var(--tx-red)   8%, var(--tx-red)   100%); clip-path: polygon(0% 50%, 6% 0%, 100% 0%, 100% 100%, 6% 100%); }
+.logo-stripe-w { background: linear-gradient(90deg, var(--tx-cream) 0%, var(--tx-cream) 100%); }
+.logo-stripe-b { background: linear-gradient(90deg, var(--tx-blue)  0%, var(--tx-blue)  92%, transparent 100%); clip-path: polygon(0% 0%, 94% 0%, 100% 50%, 94% 100%, 0% 100%); }
+
+/* Second band of stripes behind the title */
+.logo-stripes::before,
+.logo-stripes::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 8px;
+  display: block;
+  background:
+    linear-gradient(90deg, var(--tx-blue) 0%, var(--tx-blue) 100%);
+}
+.logo-stripes::before { top: -10px;    background: var(--tx-cream); clip-path: polygon(0 0,100% 0,98% 100%,2% 100%); }
+.logo-stripes::after  { bottom: -10px; background: var(--tx-cream); clip-path: polygon(2% 0,98% 0,100% 100%,0 100%); }
+
+.game-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(10px, 2vw, 22px);
+  margin: 2px 0 4px;
+  position: relative;
+}
+.logo-star {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  color: var(--tx-gold);
+  filter:
+    drop-shadow(0 0 12px var(--tx-amber))
+    drop-shadow(0 3px 0 #6a4a00);
+  animation: logo-star-spin 4s ease-in-out infinite;
+}
+.logo-star-right { animation-delay: 2s; }
+@keyframes logo-star-spin {
+  0%, 100% { transform: rotate(-15deg) scale(1); }
+  50%      { transform: rotate( 15deg) scale(1.15); }
+}
+
+.logo-text {
+  margin: 0;
+  /* Cursive/scripty fallback chain — uses whatever script-like face the system has */
+  font-family: "Snell Roundhand", "Lucida Handwriting", "Apple Chancery", "Brush Script MT", "Trebuchet MS", cursive;
+  font-style: italic;
+  font-size: clamp(2.6rem, 8vw, 5.5rem);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 1px;
+  background: linear-gradient(180deg,
+    #fff 0%,
+    #ffeec0 30%,
+    var(--tx-gold) 55%,
+    var(--tx-amber) 78%,
+    #d9831e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-stroke: 1.5px var(--tx-red);
+  filter:
+    drop-shadow(0 -1px 0 rgba(255,255,255,0.5))
+    drop-shadow(2px 2px 0 var(--tx-red))
+    drop-shadow(4px 4px 0 #6a0d1c)
+    drop-shadow(6px 6px 0 #2a0008)
+    drop-shadow(7px 7px 12px rgba(0,0,0,0.65))
+    drop-shadow(0 0 26px rgba(255, 214, 10, 0.5));
+  animation: logo-bob 3s ease-in-out infinite;
+}
+@keyframes logo-bob {
+  0%, 100% { transform: translateY(0)   rotate(-1.5deg); }
+  50%      { transform: translateY(-8px) rotate( 1.5deg); }
+}
+
+/* ============================================================
+   SUBTITLE RIBBON — navy blue banner with folded ends
+   ============================================================ */
+.subtitle-ribbon {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  position: relative;
+  background: linear-gradient(180deg, #2244a8 0%, var(--tx-blue) 50%, #15296b 100%);
+  color: #fff;
+  padding: 8px 36px;
+  font-weight: 900;
+  font-size: clamp(0.78rem, 1.6vw, 0.95rem);
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  border: 2px solid #fff;
+  border-radius: 2px;
+  box-shadow:
+    0 4px 0 rgba(0,0,0,0.5),
+    0 0 26px rgba(27, 58, 138, 0.6),
+    inset 0 1px 0 rgba(255,255,255,0.25),
+    inset 0 -2px 0 rgba(0,0,0,0.3);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  clip-path: polygon(
+    12px 0, calc(100% - 12px) 0,
+    100% 50%, calc(100% - 12px) 100%,
+    12px 100%, 0 50%);
+  margin-top: 6px;
+}
+.ribbon-star {
+  color: var(--tx-gold);
+  text-shadow: 0 0 8px var(--tx-amber);
+  font-size: 1.2em;
+}
+
+/* ============================================================
+   MISSION CARD — white rounded panel with shield emblem
+   ============================================================ */
+.mission-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 2vw, 18px);
+  width: min(920px, 96%);
+  background: linear-gradient(180deg, #fafcff 0%, #e8efff 100%);
+  border: 2px solid #fff;
+  border-radius: 18px;
+  padding: clamp(8px, 1.2vh, 12px) clamp(18px, 3vw, 24px);
+  box-shadow:
+    0 6px 0 rgba(0,0,0,0.35),
+    0 10px 30px rgba(0,0,0,0.4),
+    inset 0 0 0 1px rgba(27, 58, 138, 0.2);
+}
+.mission-shield {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(40px, 6vw, 56px);
+  height: clamp(40px, 6vw, 56px);
+  background: var(--tx-blue);
+  border: 4px solid var(--tx-red);
+  border-radius: 50%;
+  box-shadow:
+    0 4px 0 rgba(0,0,0,0.35),
+    inset 0 0 12px rgba(0,0,0,0.3);
+}
+.mission-shield-star {
+  font-size: clamp(1.4rem, 3vw, 1.8rem);
+  color: #fff;
+  text-shadow: 0 0 8px rgba(255,255,255,0.6);
+  line-height: 1;
+}
+.mission-text {
+  margin: 0;
+  color: #1a1f3a;
+  font-size: clamp(0.85rem, 1.7vw, 1rem);
+  line-height: 1.45;
+  font-weight: 500;
+  text-align: left;
+  flex: 1;
+}
+.mission-text strong            { color: var(--tx-navy); font-weight: 900; }
+.mission-text .mission-highlight { color: var(--tx-red);  font-weight: 900; }
+
+/* Feature badges no longer rendered, but defensive cleanup */
+.feature-badges, .badge { display: none; }
+
+/* ============================================================
+   CTA ROW — primary START + Daily secondary, side-by-side
+   ============================================================ */
+.cta-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: clamp(12px, 2vw, 20px);
+  width: 100%;
+  max-width: 900px;
+  margin: clamp(4px, 1vh, 10px) auto 0;
+}
+/* Legacy alias for any leftover .cta-block reference */
+.cta-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.mega-start {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  font-size: clamp(1.05rem, 2.4vw, 1.5rem);
+  padding: clamp(10px, 1.6vh, 16px) clamp(30px, 5vw, 56px);
+  min-width: clamp(280px, 40vw, 460px);
+  background: linear-gradient(180deg,
+    #ff556e 0%,
+    var(--tx-red) 35%,
+    #b01432 70%,
+    #6a0d1c 100%);
+  color: #fff;
+  border: 4px solid var(--tx-gold);
+  border-radius: 999px;
+  letter-spacing: 2.5px;
+  font-weight: 900;
+  text-transform: uppercase;
+  cursor: pointer;
+  text-shadow:
+    0 2px 0 rgba(0,0,0,0.6),
+    0 0 14px rgba(0,0,0,0.5);
+  box-shadow:
+    0 8px 0 #5a0815,
+    0 12px 36px rgba(215, 38, 61, 0.7),
+    0 0 60px rgba(255, 214, 10, 0.55),
+    inset 0 -4px 0 rgba(0,0,0,0.3),
+    inset 0 2px 0 rgba(255,255,255,0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  animation: mega-start-glow 2.4s ease-in-out infinite;
+  overflow: hidden;
+  isolation: isolate;
+}
+.mega-start .cta-flag {
+  font-size: 1.3em;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+.mega-start::before {
+  /* Decorative outer halo behind the button */
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 22px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 214, 10, 0.6) 60deg,
+    transparent 120deg,
+    rgba(215, 38, 61, 0.6) 180deg,
+    transparent 240deg,
+    rgba(27, 58, 138, 0.6) 300deg,
+    transparent 360deg);
+  filter: blur(8px);
+  z-index: -1;
+  animation: mega-start-halo 6s linear infinite;
+  opacity: 0.7;
+}
+@keyframes mega-start-halo {
+  to { transform: rotate(360deg); }
+}
+.cta-shine {
+  /* Diagonal shine sweep across the button face */
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -60%;
+  width: 30%;
+  background: linear-gradient(110deg, transparent, rgba(255,255,255,0.45), transparent);
+  transform: skewX(-22deg);
+  pointer-events: none;
+  animation: cta-shine-sweep 4s ease-in-out infinite;
+}
+@keyframes cta-shine-sweep {
+  0%   { left: -60%; opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { left: 140%; opacity: 1; }
+  100% { left: 140%; opacity: 0; }
+}
+.mega-start:hover {
+  transform: translateY(-4px) scale(1.03);
+  box-shadow:
+    0 12px 0 #5a0815,
+    0 18px 44px rgba(215, 38, 61, 0.8),
+    0 0 70px rgba(255, 214, 10, 0.7),
+    inset 0 -4px 0 rgba(0,0,0,0.3),
+    inset 0 2px 0 rgba(255,255,255,0.3);
+}
+.mega-start:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 4px 0 #5a0815,
+    0 6px 14px rgba(0,0,0,0.4),
+    inset 0 -2px 0 rgba(0,0,0,0.3);
+}
+.mega-start:focus-visible {
+  outline: 3px solid var(--tx-gold);
+  outline-offset: 6px;
+}
+.mega-start .cta-icon { font-size: 1.5em; }
+.mega-start .cta-text { z-index: 1; }
+@keyframes mega-start-glow {
+  0%, 100% {
+    box-shadow:
+      0 8px 0 #5a0815,
+      0 12px 36px rgba(215, 38, 61, 0.6),
+      0 0 0 0 rgba(255, 214, 10, 0.65),
+      0 0 50px rgba(255, 214, 10, 0.45),
+      inset 0 -4px 0 rgba(0,0,0,0.3),
+      inset 0 2px 0 rgba(255,255,255,0.25);
+  }
+  50% {
+    box-shadow:
+      0 8px 0 #5a0815,
+      0 12px 36px rgba(215, 38, 61, 0.6),
+      0 0 0 20px rgba(255, 214, 10, 0),
+      0 0 50px rgba(255, 214, 10, 0.45),
+      inset 0 -4px 0 rgba(0,0,0,0.3),
+      inset 0 2px 0 rgba(255,255,255,0.25);
+  }
+}
+
+.big-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #2a4ec2 0%, var(--tx-blue) 50%, #0e1d56 100%);
+  color: #fff;
+  border: 3px solid var(--tx-cream);
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  padding: clamp(10px, 1.4vh, 14px) clamp(20px, 4vw, 28px);
+  border-radius: 999px;
+  text-transform: uppercase;
+  box-shadow:
+    0 6px 0 #0a1740,
+    0 10px 24px rgba(27, 58, 138, 0.6),
+    inset 0 -3px 0 rgba(0,0,0,0.3),
+    inset 0 2px 0 rgba(255,255,255,0.3);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.12s ease;
+}
+.big-secondary .cta-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: #fff;
+  color: var(--tx-blue);
+  border-radius: 6px;
+  font-size: 1em;
+  border: 2px solid var(--tx-cream);
+}
+.big-secondary:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 9px 0 #0a1740,
+    0 14px 30px rgba(27, 58, 138, 0.8),
+    inset 0 -3px 0 rgba(0,0,0,0.3),
+    inset 0 2px 0 rgba(255,255,255,0.4);
+}
+.big-secondary:active {
+  transform: translateY(3px);
+  box-shadow: 0 3px 0 #0a1740;
+}
+.big-secondary:focus-visible {
+  outline: 3px solid var(--tx-gold);
+  outline-offset: 3px;
+}
+
+/* ============================================================
+   SELECTOR SECTIONS — Vehicle picker + Difficulty picker
+   ============================================================ */
+.selector-section {
+  position: relative;
+  width: 100%;
+  text-align: center;
+}
+.section-title {
+  margin: 0 0 6px;
+  font-size: clamp(0.85rem, 1.8vw, 1.05rem);
+  letter-spacing: 3px;
+  font-weight: 900;
+  color: var(--tx-gold);
+  text-shadow:
+    2px 2px 0 var(--tx-navy),
+    0 0 14px rgba(255, 214, 10, 0.6);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+.section-decor {
+  color: rgba(255, 214, 10, 0.45);
+  letter-spacing: -2px;
+  flex: 0 1 70px;
+}
+.section-emoji { font-size: 1.15em; }
+
+/* ----- Vehicle picker: 4 premium collectible cards -----
+   Each card uses a different rarity tier color via :nth-child:
+     1st = Common (cream/silver), 2nd = Rare (blue),
+     3rd = Epic (purple),         4th = Legendary (gold).
+   Locked cards keep their tier color (just dimmer) so unlocks feel premium.
+*/
+.vehicle-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: clamp(8px, 1.4vw, 14px);
+  padding: 4px;
+}
+@media (max-width: 540px) {
+  .vehicle-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.vehicle-card {
+  position: relative;
+  /* Sky-blue gradient card face — like the reference's photo cards */
+  background:
+    linear-gradient(180deg,
+      #c8e0ff 0%,
+      #a3c8ff 60%,
+      #7da8e8 100%);
+  border: 3px solid #fff;
+  border-radius: 18px;
+  padding: 8px 6px 10px;
+  color: var(--tx-navy);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+  overflow: hidden;
+  box-shadow:
+    0 5px 0 rgba(0,0,0,0.4),
+    0 0 0 2px rgba(27, 58, 138, 0.4),
+    0 8px 18px rgba(0,0,0,0.3);
+  font: inherit;
+}
+/* Per-card tier color (used for selected/hover glow) */
+.vehicle-card:nth-child(1) { --tier-color: #d7263d; --tier-glow: rgba(215, 38, 61, 0.5); }
+.vehicle-card:nth-child(2) { --tier-color: #4a9eff; --tier-glow: rgba(74, 158, 255, 0.5); }
+.vehicle-card:nth-child(3) { --tier-color: #a466ff; --tier-glow: rgba(164, 102, 255, 0.5); }
+.vehicle-card:nth-child(4) { --tier-color: var(--tx-gold); --tier-glow: rgba(255, 214, 10, 0.5); }
+
+/* Shine sweep across each card on hover */
+.vehicle-card::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -50%;
+  width: 35%;
+  background: linear-gradient(110deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-22deg);
+  transition: left 0.7s ease;
+  pointer-events: none;
+}
+.vehicle-card:hover:not(:disabled)::before { left: 140%; }
+
+.vehicle-card:hover:not(:disabled) {
+  transform: translateY(-5px);
+  box-shadow:
+    0 10px 0 rgba(0,0,0,0.4),
+    0 0 0 2px var(--tier-color),
+    0 12px 28px var(--tier-glow);
+}
+
+.vehicle-card.selected {
+  border-color: var(--tx-gold);
+  box-shadow:
+    0 6px 0 var(--tx-red),
+    0 0 0 4px var(--tx-gold),
+    0 0 30px var(--tier-glow),
+    inset 0 0 16px rgba(255, 214, 10, 0.3);
+  animation: vehicle-card-selected-pulse 2s ease-in-out infinite;
+}
+@keyframes vehicle-card-selected-pulse {
+  0%, 100% { box-shadow: 0 6px 0 var(--tx-red), 0 0 0 4px var(--tx-gold), 0 0 30px var(--tier-glow), inset 0 0 16px rgba(255, 214, 10, 0.3); }
+  50%      { box-shadow: 0 6px 0 var(--tx-red), 0 0 0 4px var(--tx-gold), 0 0 50px var(--tier-glow), inset 0 0 24px rgba(255, 214, 10, 0.5); }
+}
+
+.vehicle-card.locked {
+  cursor: not-allowed;
+  background: linear-gradient(180deg,
+    #6884b4 0%,
+    #4a6694 60%,
+    #344c78 100%);
+}
+.vehicle-card.locked::after {
+  /* Subtle dark overlay to indicate locked but keep card still beautiful */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg,
+    rgba(0,0,0,0.25) 0%,
+    rgba(0,0,0,0.40) 100%);
+  pointer-events: none;
+  border-radius: inherit;
+}
+.vehicle-card.locked .vehicle-emoji { filter: grayscale(0.4) brightness(0.7); }
+.vehicle-card.locked .vehicle-name  { color: #e8efff; }
+.vehicle-card.locked .vehicle-blurb { color: #4a9eff; font-weight: bold; }
+
+.vehicle-lock {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  font-size: 1rem;
+  background: linear-gradient(180deg, #2a1a05, var(--tx-navy));
+  border: 2px solid var(--tx-gold);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tx-gold);
+  text-shadow: 0 0 8px var(--tx-amber);
+  box-shadow: 0 0 12px rgba(255, 214, 10, 0.6);
+  animation: lock-glow 2.4s ease-in-out infinite;
+}
+@keyframes lock-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 214, 10, 0.4); }
+  50%      { box-shadow: 0 0 18px rgba(255, 214, 10, 0.85); }
+}
+
+.vehicle-emoji-area {
+  position: relative;
+  z-index: 1;
+  height: clamp(50px, 7vw, 64px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+.vehicle-emoji {
+  font-size: clamp(2rem, 4.5vw, 2.7rem);
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+  transition: transform 0.2s ease;
+}
+.vehicle-card:hover:not(:disabled) .vehicle-emoji {
+  transform: scale(1.12) rotate(-4deg);
+}
+
+.vehicle-info {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  padding: 6px 4px;
+  margin-top: 4px;
+}
+.vehicle-name {
+  font-weight: 900;
+  font-size: clamp(0.82rem, 1.7vw, 1rem);
+  color: var(--tx-navy);
+  letter-spacing: 0.5px;
+}
+.vehicle-blurb {
+  font-size: clamp(0.7rem, 1.4vw, 0.78rem);
+  color: var(--tx-blue);
+  font-weight: bold;
+  min-height: 2.2em;
+  line-height: 1.25;
+}
+
+.vehicle-selected-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  background: linear-gradient(180deg, var(--tx-gold), var(--tx-amber));
+  color: var(--tx-navy);
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  box-shadow: 0 0 12px rgba(255, 214, 10, 0.7);
+}
+
+.vehicle-card:focus-visible {
+  outline: 3px solid var(--tx-gold);
+  outline-offset: 3px;
+}
+
+/* ============================================================
+   DIFFICULTY PILLS — color-themed per mode
+   ============================================================ */
+.difficulty-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(8px, 1.4vw, 14px);
+  padding: 4px;
+  width: min(920px, 96%);
+  margin: 0 auto;
+}
+@media (max-width: 720px) {
+  .difficulty-grid { grid-template-columns: 1fr; }
+}
+
+.mode-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #fafcff 0%, #e8efff 100%);
+  border: 3px solid var(--mode-border, var(--tx-blue));
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: var(--tx-navy);
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+  font: inherit;
+  box-shadow:
+    0 4px 0 rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+  position: relative;
+  overflow: hidden;
+  text-align: left;
+}
+/* Per-mode theme colors */
+.mode-easy   { --mode-border: #2e9c4a; --mode-glow: rgba(46, 156, 74, 0.45); }
+.mode-normal { --mode-border: var(--tx-blue); --mode-glow: rgba(27, 58, 138, 0.45); }
+.mode-hard   { --mode-border: #ff7b00; --mode-glow: rgba(255, 123, 0, 0.45); }
+
+.mode-card::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: -60%;
+  width: 35%;
+  background: linear-gradient(110deg, transparent, rgba(255,255,255,0.5), transparent);
+  transform: skewX(-22deg);
+  transition: left 0.7s ease;
+  pointer-events: none;
+}
+.mode-card:hover::before { left: 140%; }
+.mode-card:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 7px 0 rgba(0,0,0,0.4),
+    0 0 22px var(--mode-glow),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.mode-card.selected {
+  background: linear-gradient(180deg, #fff 0%, #ffe88a 100%);
+  box-shadow:
+    0 5px 0 var(--mode-border),
+    0 0 0 3px var(--tx-gold),
+    0 0 24px var(--mode-glow),
+    inset 0 1px 0 rgba(255,255,255,0.95);
+  animation: mode-card-pulse 2.2s ease-in-out infinite;
+}
+@keyframes mode-card-pulse {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2px); }
+}
+.mode-card:focus-visible {
+  outline: 3px solid var(--tx-gold);
+  outline-offset: 3px;
+}
+
+.mode-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(36px, 4.5vw, 48px);
+  height: clamp(36px, 4.5vw, 48px);
+  background: var(--mode-border);
+  border-radius: 12px;
+  font-size: clamp(1.3rem, 3vw, 1.7rem);
+  color: #fff;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  flex: 1;
+  min-width: 0;
+}
+.mode-name {
+  font-weight: 900;
+  font-size: clamp(0.85rem, 1.7vw, 1rem);
+  color: var(--mode-border);
+  letter-spacing: 0.5px;
+}
+.mode-meta {
+  font-size: clamp(0.7rem, 1.4vw, 0.8rem);
+  color: var(--tx-blue);
+  font-weight: 500;
+  margin-top: 2px;
+}
+.mode-meta strong { color: var(--tx-navy); font-weight: 900; }
+
+/* ============================================================
+   BOTTOM NAV — 4 navy capsule buttons (reference style)
+   ============================================================ */
+.bottom-nav {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1.4vw, 14px);
+  width: 100%;
+  max-width: 1000px;
+  margin: clamp(2px, 0.6vh, 8px) auto 0;
+  padding: 0 12px;
+}
+.menu-divider { display: none; }
+
+.menu-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: linear-gradient(180deg, #2a4ec2 0%, var(--tx-blue) 50%, #0e1d56 100%);
+  border: 2px solid var(--tx-cream);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: clamp(0.78rem, 1.5vw, 0.92rem);
+  cursor: pointer;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  box-shadow:
+    0 5px 0 #0a1740,
+    0 8px 18px rgba(0, 0, 0, 0.4),
+    inset 0 -3px 0 rgba(0,0,0,0.3),
+    inset 0 2px 0 rgba(255,255,255,0.25);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  font: inherit;
+}
+.menu-btn .menu-icon {
+  font-size: 1.15em;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
+}
+.menu-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 7px 0 #0a1740,
+    0 10px 22px rgba(27, 58, 138, 0.7),
+    0 0 24px rgba(255, 214, 10, 0.4),
+    inset 0 -3px 0 rgba(0,0,0,0.3),
+    inset 0 2px 0 rgba(255,255,255,0.3);
+}
+.menu-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 3px 0 #0a1740;
+}
+.menu-btn:focus-visible {
+  outline: 3px solid var(--tx-gold);
+  outline-offset: 3px;
+}
+@media (max-width: 540px) {
+  .menu-btn .menu-label { display: none; }
+  .menu-btn { padding: 10px 14px; }
+}
+
+/* ============================================================
+   WHAT'S NEW STRIP
+   ============================================================ */
+.whats-new-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(4px, 0.8vw, 8px);
+  align-items: center;
+  justify-content: center;
+  padding: 5px 14px;
+  background: linear-gradient(90deg,
+    rgba(10, 14, 44, 0.78) 0%,
+    rgba(27, 58, 138, 0.78) 50%,
+    rgba(215, 38, 61, 0.78) 100%);
+  border-top:    1px solid var(--tx-gold);
+  border-bottom: 1px solid var(--tx-gold);
+  font-size: clamp(0.65rem, 1.3vw, 0.78rem);
+}
+.whats-new-label {
+  color: var(--tx-gold);
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  text-shadow: 0 0 8px var(--tx-amber);
+  font-size: clamp(0.7rem, 1.4vw, 0.85rem);
+}
+.whats-new-item {
+  color: var(--tx-cream);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   REDUCE MOTION — kill all decorative animations
+   ============================================================ */
+.reduce-motion .bg-star,
+.reduce-motion .bg-firework,
+.reduce-motion .bg-sun,
+.reduce-motion .bg-rays,
+.reduce-motion .bg-road-stripe,
+.reduce-motion .logo-word,
+.reduce-motion .logo-side-emoji,
+.reduce-motion .mega-start,
+.reduce-motion .mega-start::before,
+.reduce-motion .cta-shine,
+.reduce-motion .vehicle-card.selected,
+.reduce-motion .vehicle-lock,
+.reduce-motion .mode-card.selected { animation: none !important; }
+.reduce-motion .vehicle-card::before,
+.reduce-motion .mode-card::before { display: none !important; }
+
+/* Reduce-motion overrides for new scene props */
+.reduce-motion .bg-flag,
+.reduce-motion .bg-route-sign,
+.reduce-motion .bg-gps-pin,
+.reduce-motion .logo-star,
+.reduce-motion .logo-text { animation: none !important; }
+
+/* Defensive: hide any leftover legacy markup that's no longer rendered */
+.title-screen .story,
+.title-screen .controls-card,
+.title-screen .title-hero,
+.title-screen .title-hook,
+.title-screen .title-pickers,
+.title-screen .title-main,
+.title-screen .title-footer,
+.title-screen .whats-new-strip { display: none; }
+
 
 .banner {
   display: flex;
@@ -751,6 +2206,253 @@ button.small {
 .tc-jump  { order: 3; margin-left: auto; }
 .tc-selfie { order: 4; }
 .tc-honk   { order: 5; }
+
+/* ===================================================================
+   Celebration / Initials Entry Overlay
+   Fills the viewport, fits in one screen, themed for the 4th of July.
+   =================================================================== */
+
+.celebration-overlay {
+  background: linear-gradient(135deg, #1b3a8a 0%, #4a1b8a 50%, #d7263d 100%);
+  overflow: hidden;
+}
+
+/* Floating background sparkles drifting upward */
+.celebration-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.cstar {
+  position: absolute;
+  bottom: -50px;
+  left: calc(8% + (var(--delay, 0s) - 0s) * 8%);
+  font-size: clamp(1rem, 2.4vw, 1.8rem);
+  opacity: 0;
+  animation: cstar-drift 5s linear infinite;
+  animation-delay: var(--delay, 0s);
+  filter: drop-shadow(0 0 6px rgba(255, 214, 10, 0.7));
+}
+.cstar:nth-child(1)  { left:  5%; }
+.cstar:nth-child(2)  { left: 14%; }
+.cstar:nth-child(3)  { left: 23%; }
+.cstar:nth-child(4)  { left: 33%; }
+.cstar:nth-child(5)  { left: 42%; }
+.cstar:nth-child(6)  { left: 53%; }
+.cstar:nth-child(7)  { left: 63%; }
+.cstar:nth-child(8)  { left: 72%; }
+.cstar:nth-child(9)  { left: 82%; }
+.cstar:nth-child(10) { left: 91%; }
+
+@keyframes cstar-drift {
+  0%   { transform: translateY(0)     rotate(0deg);   opacity: 0; }
+  10%  { opacity: 0.9; }
+  90%  { opacity: 0.9; }
+  100% { transform: translateY(-110vh) rotate(360deg); opacity: 0; }
+}
+
+/* Main card — fits within 100dvh, content flows in a flex column */
+.celebration-card {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(180deg, #fff 0%, #fff8e1 100%);
+  border-radius: 20px;
+  padding: clamp(16px, 3vw, 30px) clamp(20px, 4vw, 40px);
+  width: min(540px, 92vw);
+  max-height: 95dvh;
+  box-shadow:
+    0 6px 0 var(--red),
+    0 10px 30px rgba(0, 0, 0, 0.45);
+  border: 4px solid var(--sunshine);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(8px, 1.6vh, 18px);
+  text-align: center;
+  animation: celebration-pop 0.45s cubic-bezier(.34,1.56,.64,1);
+}
+
+@keyframes celebration-pop {
+  0%   { transform: scale(0.6) rotate(-6deg); opacity: 0; }
+  60%  { transform: scale(1.06) rotate(2deg); }
+  100% { transform: scale(1)   rotate(0deg); opacity: 1; }
+}
+
+/* Banner — RED-WHITE-BLUE flag-style */
+.celebration-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(90deg, var(--red), var(--white), var(--blue));
+  padding: 10px 18px;
+  border-radius: 12px;
+  width: 100%;
+  justify-content: center;
+  box-shadow: 0 3px 0 rgba(0,0,0,0.15);
+  border: 2px solid var(--white);
+}
+.celebration-banner h2 {
+  margin: 0;
+  color: var(--white);
+  font-size: clamp(1.1rem, 3.2vw, 1.8rem);
+  letter-spacing: 1.5px;
+  text-shadow: 2px 2px 0 var(--blue), -2px -2px 0 var(--red);
+}
+.celebration-banner .star.big {
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+  color: var(--sunshine);
+  text-shadow: 0 0 8px rgba(0,0,0,0.4);
+  animation: star-twirl 2s ease-in-out infinite;
+}
+@keyframes star-twirl {
+  0%, 100% { transform: rotate(-15deg) scale(1); }
+  50%      { transform: rotate( 15deg) scale(1.15); }
+}
+
+/* Rank badge — bouncy entrance */
+.celebration-rank {
+  font-size: clamp(1.4rem, 4.5vw, 2.4rem);
+  font-weight: 900;
+  color: var(--red);
+  background: var(--sunshine);
+  padding: 6px 22px;
+  border-radius: 999px;
+  border: 3px solid var(--red);
+  box-shadow: 0 4px 0 var(--red), 0 0 0 4px rgba(255, 214, 10, 0.4);
+  animation: rank-bounce 0.7s cubic-bezier(.34,1.56,.64,1) 0.2s both;
+}
+@keyframes rank-bounce {
+  0%   { transform: scale(0) rotate(-30deg); opacity: 0; }
+  60%  { transform: scale(1.25) rotate(8deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Score display */
+.celebration-score-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.celebration-score-value {
+  font-size: clamp(2.2rem, 7vw, 3.5rem);
+  font-weight: 900;
+  color: var(--blue);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+  text-shadow: 3px 3px 0 var(--sunshine);
+  line-height: 1;
+}
+.celebration-score-label {
+  font-size: clamp(0.8rem, 1.8vw, 1rem);
+  color: #888;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+/* Prompt */
+.celebration-prompt {
+  margin: 0;
+  font-size: clamp(0.85rem, 2vw, 1.05rem);
+  color: var(--blue);
+  font-weight: bold;
+  font-style: italic;
+}
+
+/* The 3 big arcade-style initial slots */
+.big-initials {
+  display: flex;
+  gap: clamp(8px, 2vw, 16px);
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+.initial-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.big-initial {
+  width: clamp(56px, 14vw, 88px);
+  height: clamp(64px, 16vw, 104px);
+  font-size: clamp(2.2rem, 6.5vw, 3.4rem);
+  font-weight: 900;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--red);
+  background: linear-gradient(180deg, var(--sunshine), #ffbf3e);
+  border: 4px solid var(--blue);
+  border-radius: 10px;
+  font-family: "Courier New", monospace;
+  box-shadow: 0 4px 0 var(--blue), inset 0 -4px 0 rgba(0,0,0,0.1);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.big-initial:focus {
+  outline: none;
+  transform: translateY(-2px);
+  border-color: var(--red);
+  box-shadow: 0 6px 0 var(--red), 0 0 0 4px rgba(215, 38, 61, 0.3);
+}
+.initial-arrow {
+  width: clamp(56px, 14vw, 88px);
+  height: 26px;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: 2px solid var(--blue);
+  background: var(--white);
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: bold;
+  box-shadow: 0 2px 0 var(--blue);
+  padding: 0;
+  transition: transform 0.08s ease, background 0.12s ease;
+}
+.initial-arrow:hover {
+  background: var(--sunshine);
+}
+.initial-arrow:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* Mega save button — big, arcade-y */
+.mega-save {
+  font-size: clamp(1rem, 2.6vw, 1.3rem);
+  padding: clamp(10px, 1.8vh, 16px) clamp(20px, 4vw, 36px);
+  border-radius: 12px;
+  letter-spacing: 1.5px;
+  background: var(--red);
+  color: var(--white);
+  border: 3px solid var(--white);
+  box-shadow:
+    0 5px 0 var(--blue),
+    0 8px 18px rgba(0,0,0,0.25);
+  text-transform: uppercase;
+  font-weight: 900;
+  margin-top: 4px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.mega-save:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 8px 0 var(--blue),
+    0 12px 22px rgba(0,0,0,0.3);
+}
+.mega-save:active {
+  transform: translateY(2px);
+  box-shadow:
+    0 2px 0 var(--blue),
+    0 4px 10px rgba(0,0,0,0.2);
+}
+
+/* Reduce motion: kill all the celebratory animations */
+.reduce-motion .celebration-card,
+.reduce-motion .celebration-rank,
+.reduce-motion .star.big,
+.reduce-motion .cstar { animation: none !important; }
 
 /* ----- Reduce-motion overrides ----- */
 .reduce-motion .polaroid          { transform: rotate(0deg) !important; }

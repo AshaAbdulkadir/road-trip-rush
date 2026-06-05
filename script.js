@@ -418,7 +418,9 @@
     gameoverTitle: document.getElementById("gameover-title"),
     gameoverMessage: document.getElementById("gameover-message"),
     finalScore: document.getElementById("final-score"),
-    initialsSection: document.getElementById("initials-section"),
+    celebrationOverlay: document.getElementById("celebration-overlay"),
+    celebrationRank: document.getElementById("celebration-rank"),
+    celebrationScoreValue: document.getElementById("celebration-score-value"),
     scoresList: document.getElementById("scores-list"),
     noScores: document.getElementById("no-scores"),
     selfiesLeft: document.getElementById("selfies-left"),
@@ -1227,7 +1229,7 @@
     updateHud();
     els.pauseOverlay.classList.add("hidden");
     els.gameoverOverlay.classList.add("hidden");
-    els.initialsSection.classList.add("hidden");
+    if (els.celebrationOverlay) els.celebrationOverlay.classList.add("hidden");
 
     showScreen("game");
     cancelAnimationFrame(game.rafId);
@@ -1301,15 +1303,68 @@
 
     const qualifies = scoreQualifies(game.score);
     if (qualifies) {
-      els.initialsSection.classList.remove("hidden");
-      const inputs = document.querySelectorAll(".initial");
-      inputs.forEach((i) => (i.value = ""));
-      inputs[0].focus();
+      // Skip the standard gameover card — go straight to the celebratory
+      // initials screen. The gameover card will appear after they save.
+      showCelebrationScreen(game.score);
     } else {
-      els.initialsSection.classList.add("hidden");
+      els.gameoverOverlay.classList.remove("hidden");
     }
+  }
 
-    els.gameoverOverlay.classList.remove("hidden");
+  // ----- Celebration / Initials entry screen -----
+  function rankFor(score) {
+    const scores = loadHighScores();
+    let rank = scores.length + 1;
+    for (let i = 0; i < scores.length; i++) {
+      if (score > scores[i].score) { rank = i + 1; break; }
+    }
+    return rank;
+  }
+
+  function rankBadge(rank) {
+    if (rank === 1) return "🥇 #1";
+    if (rank === 2) return "🥈 #2";
+    if (rank === 3) return "🥉 #3";
+    return `🏅 #${rank}`;
+  }
+
+  function showCelebrationScreen(finalScore) {
+    if (!els.celebrationOverlay) return;
+    els.celebrationRank.textContent = rankBadge(rankFor(finalScore));
+    // Start at zero and animate up — feels celebratory
+    animateScoreCountUp(0, finalScore, 1200);
+    // Reset initials to AAA each time
+    const inputs = document.querySelectorAll(".celebration-card .big-initial");
+    inputs.forEach((i, idx) => {
+      i.value = ["A", "S", "H"][idx] || "A"; // default initials = Asha
+    });
+    els.celebrationOverlay.classList.remove("hidden");
+    // Focus the first input so keyboard typing works immediately
+    setTimeout(() => inputs[0] && inputs[0].focus(), 200);
+  }
+
+  function animateScoreCountUp(from, to, durationMs) {
+    if (!els.celebrationScoreValue) return;
+    const start = performance.now();
+    function step(now) {
+      const t = Math.min(1, (now - start) / durationMs);
+      // Ease-out cubic for a snappy slowdown near the final value
+      const eased = 1 - Math.pow(1 - t, 3);
+      const value = Math.round(from + (to - from) * eased);
+      els.celebrationScoreValue.textContent = value.toLocaleString();
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function cycleInitial(idx, dir) {
+    const input = document.querySelector(`.celebration-card .big-initial[data-i="${idx}"]`);
+    if (!input) return;
+    const cur = (input.value || "A").toUpperCase().charCodeAt(0);
+    let next = cur + dir;
+    if (next < 65) next = 90;       // wrap Z when going below A
+    if (next > 90) next = 65;       // wrap A when going above Z
+    input.value = String.fromCharCode(next);
   }
 
   // ----- Selfie / Scrapbook -----
@@ -1725,6 +1780,13 @@
   // ----- Tutorial -----
   function showTutorialIfFirstRun() {
     if (localStorage.getItem(TUTORIAL_KEY)) return;
+    if (!els.tutorialOverlay) return;
+    els.tutorialOverlay.classList.remove("hidden");
+    game.tutorialActive = true;
+  }
+  // Force-shows the tutorial overlay (used by the title-screen "How to Play"
+  // button). Doesn't consult the seen-flag and doesn't store one.
+  function showTutorialOnDemand() {
     if (!els.tutorialOverlay) return;
     els.tutorialOverlay.classList.remove("hidden");
     game.tutorialActive = true;
@@ -3127,15 +3189,37 @@
     showScreen("title");
   });
   document.getElementById("btn-save-score").addEventListener("click", () => {
-    const inputs = document.querySelectorAll(".initial");
+    const inputs = document.querySelectorAll(".celebration-card .big-initial");
     let initials = "";
-    inputs.forEach((i) => (initials += i.value || "_"));
-    initials = initials.slice(0, 3).toUpperCase();
+    inputs.forEach((i) => (initials += (i.value || "_").toUpperCase()));
+    initials = initials.slice(0, 3);
     addHighScore(initials, game.score);
-    els.initialsSection.classList.add("hidden");
-    renderHighScores();
-    showScreen("scores");
-    els.gameoverOverlay.classList.add("hidden");
+    if (els.celebrationOverlay) els.celebrationOverlay.classList.add("hidden");
+    // After saving, fall through to the standard game-over card so the
+    // player has Play Again / Scrapbook / Title options available.
+    els.gameoverOverlay.classList.remove("hidden");
+  });
+
+  // Arrow buttons on the big-initial slots — arcade-machine cycle
+  document.querySelectorAll(".celebration-card .initial-arrow").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const stack = btn.closest(".initial-stack");
+      if (!stack) return;
+      const idx = parseInt(stack.dataset.i, 10);
+      const dir = btn.classList.contains("up") ? -1 : 1;
+      cycleInitial(idx, dir);
+    });
+  });
+
+  // Arrow keys also cycle the focused initial up/down
+  document.querySelectorAll(".celebration-card .big-initial").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      const idx = parseInt(input.dataset.i, 10);
+      if (e.key === "ArrowUp")   { e.preventDefault(); cycleInitial(idx, -1); }
+      if (e.key === "ArrowDown") { e.preventDefault(); cycleInitial(idx,  1); }
+      if (e.key === "Enter")     { document.getElementById("btn-save-score").click(); }
+    });
   });
 
   // ----- Scrapbook screen wiring -----
@@ -3271,14 +3355,31 @@
     const selected = loadSelectedCar();
     for (const car of CARS) {
       const unlocked = car.unlockCheck(stats);
+      const isSelected = selected === car.id;
       const card = document.createElement("button");
-      card.className = "car-card" +
+      // Keep BOTH the new arcade class and the legacy `car-card` class so any
+      // older CSS or JS that references `.car-card` still works.
+      card.className = "vehicle-card car-card" +
         (unlocked ? "" : " locked") +
-        (selected === car.id ? " selected" : "");
+        (isSelected ? " selected" : "");
       card.disabled = !unlocked;
-      card.innerHTML = `<div class="car-emoji">${car.emoji}</div>
-                       <div class="car-name">${car.name}</div>
-                       <div class="car-blurb">${unlocked ? car.blurb : "🔒 " + car.blurb}</div>`;
+      card.setAttribute(
+        "aria-label",
+        `${car.name}${unlocked ? "" : " (locked)"}${isSelected ? " (selected)" : ""}`
+      );
+      card.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      // Collectible-card markup: optional lock badge, emoji area, name, blurb,
+      // and a "selected" pill when this is the current pick.
+      card.innerHTML =
+        (unlocked ? "" : `<span class="vehicle-lock" aria-hidden="true">🔒</span>`) +
+        `<div class="vehicle-emoji-area">
+           <span class="vehicle-emoji">${car.emoji}</span>
+         </div>
+         <div class="vehicle-info">
+           <div class="vehicle-name car-name">${car.name}</div>
+           <div class="vehicle-blurb car-blurb">${car.blurb}</div>
+           ${isSelected ? `<span class="vehicle-selected-badge">✓ SELECTED</span>` : ""}
+         </div>`;
       card.addEventListener("click", () => {
         if (!unlocked) return;
         saveSelectedCar(car.id);
@@ -3307,6 +3408,10 @@
   // ----- Settings + cars + touch wiring -----
   document.getElementById("btn-settings").addEventListener("click", openSettings);
   document.getElementById("btn-close-settings").addEventListener("click", closeSettings);
+  // "How to Play" on the title screen — force-shows the tutorial overlay
+  // without consulting the first-run flag.
+  const btnHowTo = document.getElementById("btn-how-to-play");
+  if (btnHowTo) btnHowTo.addEventListener("click", showTutorialOnDemand);
   bindSettingsControls();
   renderCarSelector();
   setupTouchControls();
