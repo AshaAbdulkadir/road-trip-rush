@@ -104,12 +104,80 @@
     return h >>> 0;
   }
 
+  // ----- Settings -----
+  const SETTINGS_KEY = "roadTripRush.settings.v1";
+  const SELECTED_CAR_KEY = "roadTripRush.selectedCar.v1";
+  const DEFAULT_SETTINGS = {
+    sfxVolume: 0.85,
+    musicVolume: 0.0,   // muted by default per the music quality note
+    reduceMotion: false,
+  };
+
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      const parsed = raw ? JSON.parse(raw) : {};
+      return Object.assign({}, DEFAULT_SETTINGS, parsed);
+    } catch {
+      return Object.assign({}, DEFAULT_SETTINGS);
+    }
+  }
+  function saveSettings(s) {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch {}
+  }
+  function applySettings() {
+    const s = loadSettings();
+    masterSfx.gain.value = s.sfxVolume;
+    masterMusic.gain.value = s.musicVolume;
+    document.body.classList.toggle("reduce-motion", !!s.reduceMotion);
+    return s;
+  }
+
   // ----- Replayability storage keys -----
   const DAILY_SCORES_KEY  = "roadTripRush.dailyScores.v1";
   const ACHIEVEMENTS_KEY  = "roadTripRush.achievements.v1";
   const STATS_KEY         = "roadTripRush.stats.v1";
   const GHOST_KEY         = "roadTripRush.ghost.v1";
   const TUTORIAL_KEY      = "roadTripRush.tutorialSeen.v1";
+
+  // ----- Unlockable cars -----
+  // Visual variations only; all cars share the same dimensions and stats.
+  // unlockCheck(stats) → bool indicates whether the car is available.
+  const CARS = [
+    {
+      id: "red", name: "Classic Hatchback", emoji: "🚗",
+      blurb: "Asha's trusty red road-trip car.",
+      colors: { body: "#d7263d", stripe: "#fff", roof: "#d7263d" },
+      unlockCheck: () => true,
+    },
+    {
+      id: "blue", name: "Sky Convertible", emoji: "🏎",
+      blurb: "Beat Level 1 to unlock.",
+      colors: { body: "#1b3a8a", stripe: "#fff", roof: "#1b3a8a" },
+      unlockCheck: (s) => s.level1Wins >= 1,
+    },
+    {
+      id: "tan", name: "Vacation RV", emoji: "🚙",
+      blurb: "Beat Level 2 to unlock.",
+      colors: { body: "#c2a878", stripe: "#3a2316", roof: "#a78b60" },
+      unlockCheck: (s) => s.level2Wins >= 1,
+    },
+    {
+      id: "gold", name: "Party Cruiser", emoji: "🚐",
+      blurb: "Beat Level 3 to unlock.",
+      colors: { body: "#ffd60a", stripe: "#d7263d", roof: "#ffb700" },
+      unlockCheck: (s) => s.level3Wins >= 1,
+    },
+  ];
+  function loadSelectedCar() {
+    return localStorage.getItem(SELECTED_CAR_KEY) || "red";
+  }
+  function saveSelectedCar(id) {
+    try { localStorage.setItem(SELECTED_CAR_KEY, id); } catch {}
+  }
+  function getCarById(id) {
+    return CARS.find((c) => c.id === id) || CARS[0];
+  }
 
   // ----- Achievements -----
   // Each defines: id, name, emoji, blurb, check(stats, runStats) → bool
@@ -144,16 +212,29 @@
     { id: "honk-honk",       emoji: "📯", name: "Honk Honk",
       blurb: "Press H 10 times (lifetime).",
       check: (s) => s.honks >= 10 },
+    { id: "coastal-cruiser", emoji: "🏖", name: "Coastal Cruiser",
+      blurb: "Finish Level 3 (the Coastal Cruise).",
+      check: (s) => s.level3Wins >= 1 },
+    { id: "trifecta",        emoji: "🏆", name: "Trifecta",
+      blurb: "Win all three levels (lifetime).",
+      check: (s) => s.level1Wins >= 1 && s.level2Wins >= 1 && s.level3Wins >= 1 },
   ];
 
   // ----- Audio -----
   const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  // Separate master buses so settings can mute SFX and music independently.
+  const masterSfx = audioCtx.createGain();
+  const masterMusic = audioCtx.createGain();
+  masterSfx.gain.value = 0.85;
+  masterMusic.gain.value = 0.0; // default-muted music
+  masterSfx.connect(audioCtx.destination);
+  masterMusic.connect(audioCtx.destination);
 
-  function playTone(frequency, type, duration, gainVal = 0.3) {
+  function playTone(frequency, type, duration, gainVal = 0.3, bus = masterSfx) {
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain);
-    gain.connect(audioCtx.destination);
+    gain.connect(bus);
     osc.type = type;
     osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
     gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
@@ -242,6 +323,80 @@
     setTimeout(() => playTone(base * 1.5, "sine", 0.12, 0.18), 60);
   }
 
+  // ----- Procedural background music -----
+  // Tiny chiptune loop per level. Notes scheduled ~2 seconds ahead.
+  // Defaults to fully muted (settings volume = 0). User can crank it
+  // up via the Settings overlay if they like procedural bleeps.
+  const MUSIC_LOOPS = {
+    1: { // Highway — major, bouncy
+      bpm: 120, notes: [
+        [523, 0.25], [659, 0.25], [784, 0.25], [659, 0.25],
+        [880, 0.5],  [784, 0.25], [659, 0.25],
+        [523, 0.25], [587, 0.25], [659, 0.5],
+        [784, 0.5],  [659, 0.5],
+      ], wave: "triangle"
+    },
+    2: { // City — minor, broody synthwave
+      bpm: 110, notes: [
+        [392, 0.5],  [466, 0.25], [523, 0.25],
+        [466, 0.5],  [392, 0.5],
+        [349, 0.5],  [415, 0.25], [466, 0.25],
+        [523, 1.0],
+      ], wave: "sawtooth"
+    },
+    3: { // Coastal — mellow, surf-rock-ish
+      bpm: 100, notes: [
+        [440, 0.5],  [554, 0.25], [659, 0.25],
+        [554, 0.5],  [440, 0.5],
+        [392, 0.5],  [440, 0.25], [494, 0.25],
+        [659, 0.5],  [554, 0.5],
+      ], wave: "sine"
+    },
+  };
+
+  let musicLevel = null;
+  let musicNextTime = 0;
+  let musicNoteIdx = 0;
+  let musicInterval = null;
+
+  function startMusic(level) {
+    musicLevel = level;
+    musicNextTime = audioCtx.currentTime;
+    musicNoteIdx = 0;
+    if (musicInterval) clearInterval(musicInterval);
+    musicInterval = setInterval(scheduleMusic, 250);
+  }
+  function stopMusic() {
+    if (musicInterval) clearInterval(musicInterval);
+    musicInterval = null;
+    musicLevel = null;
+  }
+  function scheduleMusic() {
+    if (musicLevel === null) return;
+    const def = MUSIC_LOOPS[musicLevel];
+    if (!def) return;
+    const beatSec = 60 / def.bpm;
+    // Schedule up to 1.5s ahead so the audio thread always has notes ready.
+    while (musicNextTime < audioCtx.currentTime + 1.5) {
+      const [freq, beats] = def.notes[musicNoteIdx % def.notes.length];
+      const dur = beats * beatSec;
+      // Each note: short envelope on its own gain so they sound staccato.
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.type = def.wave;
+      osc.frequency.setValueAtTime(freq, musicNextTime);
+      osc.connect(g);
+      g.connect(masterMusic);
+      g.gain.setValueAtTime(0.0001, musicNextTime);
+      g.gain.exponentialRampToValueAtTime(0.18, musicNextTime + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, musicNextTime + dur * 0.9);
+      osc.start(musicNextTime);
+      osc.stop(musicNextTime + dur);
+      musicNextTime += dur;
+      musicNoteIdx++;
+    }
+  }
+
   // ----- DOM -----
   const screens = {
     title: document.getElementById("title-screen"),
@@ -263,7 +418,9 @@
     gameoverTitle: document.getElementById("gameover-title"),
     gameoverMessage: document.getElementById("gameover-message"),
     finalScore: document.getElementById("final-score"),
-    initialsSection: document.getElementById("initials-section"),
+    celebrationOverlay: document.getElementById("celebration-overlay"),
+    celebrationRank: document.getElementById("celebration-rank"),
+    celebrationScoreValue: document.getElementById("celebration-score-value"),
     scoresList: document.getElementById("scores-list"),
     noScores: document.getElementById("no-scores"),
     selfiesLeft: document.getElementById("selfies-left"),
@@ -413,6 +570,17 @@
     { l1: "Skyline Hotel", l2: "Vacancy ✨" },
   ];
 
+  const COASTAL_BILLBOARDS = [
+    { l1: "🏝 Paradise Beach", l2: "Next exit" },
+    { l1: "🛟 Lifeguard Hut", l2: "Open 9-6" },
+    { l1: "🦞 Seafood Shack", l2: "Catch of the Day" },
+    { l1: "🍦 Salty Scoops", l2: "Best Ice Cream" },
+    { l1: "🌅 Sunrise Point", l2: "10 mi ahead" },
+    { l1: "🏄 Surf Rentals", l2: "By the Pier" },
+  ];
+
+  const COASTAL_TIME_BONUS = 60;
+
   function placePowerUps() {
     game.powerUps.length = 0;
     let x = 900 + game.rand() * 400;
@@ -475,6 +643,7 @@
     generateCityWorld();
     updateHud();
     sfxWin();
+    startMusic(2);
   }
 
   function generateCityWorld() {
@@ -554,6 +723,210 @@
     return { type, x: worldX, y: GROUND_Y + s.yOffset, w: s.w, h: s.h, hit: false };
   }
 
+  // ----- Coastal level setup (Level 3) -----
+  function startLevel3() {
+    game.level = 3;
+    game.worldX = 0;
+    game.timeLeft = Math.min(game.timeLeft + COASTAL_TIME_BONUS, DIFFICULTIES[game.difficulty].timer + COASTAL_TIME_BONUS + 30);
+    game.player.x = PLAYER_X_SCREEN;
+    game.player.y = GROUND_Y - PLAYER_H;
+    game.player.vy = 0;
+    game.player.onGround = true;
+    game.player.facing = 1;
+    game.player.iFrames = 0;
+    game.frame = 0;
+    game.shake = { frames: 0, intensity: 0 };
+    game.particles = [];
+    game.transition = { active: true, frames: 160, banner: "coastal" };
+    game.selfie = { active: false, frame: 0, snapped: false };
+    generateCoastalWorld();
+    updateHud();
+    sfxWin();
+    startMusic(3);
+  }
+
+  function generateCoastalWorld() {
+    game.obstacles.length = 0;
+    game.collectibles.length = 0;
+    game.clouds.length = 0;
+    game.mountains.length = 0;
+    game.buildings = [];   // reused as "palm trees"
+    game.streetlights = []; // reused as "beach umbrellas"
+    game.stars = [];        // reused as "sparkle stars" on water
+
+    const coastalObstacleTypes = ["shell", "sandcastle", "umbrella", "seagull"];
+    const scale = DIFFICULTIES[game.difficulty].obstacleSpacing;
+    let x = 600;
+    while (x < WORLD_LENGTH - 400) {
+      const type = coastalObstacleTypes[Math.floor(game.rand() * coastalObstacleTypes.length)];
+      game.obstacles.push(makeCoastalObstacle(type, x));
+      x += Math.floor((200 + Math.floor(game.rand() * 200)) * scale);
+    }
+
+    // Collectibles same shape, beach-themed emoji handled in drawCollectible
+    const collectibleTypes = ["souvenir", "snack", "postcard", "camera"];
+    let cx = 400;
+    while (cx < WORLD_LENGTH - 300) {
+      const type = collectibleTypes[Math.floor(game.rand() * collectibleTypes.length)];
+      const high = game.rand() < 0.35;
+      game.collectibles.push(makeCollectible(type, cx, high));
+      cx += 160 + Math.floor(game.rand() * 180);
+    }
+
+    // Palm trees (parallax mid)
+    let px = 60;
+    while (px < WORLD_LENGTH + 200) {
+      game.buildings.push({ x: px, w: 30 + game.rand() * 12, h: 90 + game.rand() * 40, kind: "palm" });
+      px += 280 + game.rand() * 200;
+    }
+
+    // Beach umbrellas as scenery
+    for (let ux = 320; ux < WORLD_LENGTH; ux += 380 + game.rand() * 280) {
+      game.streetlights.push({ x: ux, kind: "umbrella" });
+    }
+
+    // Water sparkles
+    for (let i = 0; i < 80; i++) {
+      game.stars.push({
+        x: game.rand() * WORLD_LENGTH,
+        y: GROUND_Y - 110 + game.rand() * 30,
+        r: 1 + game.rand() * 1.5,
+      });
+    }
+
+    placeBillboards(COASTAL_BILLBOARDS, "#f7c890", "#0a3a55");
+    placePowerUps();
+  }
+
+  function makeCoastalObstacle(type, worldX) {
+    const sizes = {
+      shell:      { w: 44, h: 16, yOffset: -12 },
+      sandcastle: { w: 38, h: 38, yOffset: -38 },
+      umbrella:   { w: 50, h: 60, yOffset: -60 },
+      seagull:    { w: 32, h: 22, yOffset: -90 },  // flying — must duck-under (don't jump)
+    };
+    const s = sizes[type];
+    return { type, x: worldX, y: GROUND_Y + s.yOffset, w: s.w, h: s.h, hit: false };
+  }
+
+  function renderCoastalBackground() {
+    // Dawn sky gradient
+    const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
+    sky.addColorStop(0, "#ffb088");
+    sky.addColorStop(0.45, "#ffd9a8");
+    sky.addColorStop(0.7, "#cce7e0");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // Big rising sun
+    const sunX = CANVAS_W - 130;
+    const sunY = 110;
+    ctx.fillStyle = "#ffe2a8";
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 60, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ff9966";
+    ctx.beginPath();
+    ctx.arc(sunX, sunY, 38, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Ocean band — reflective stripes
+    ctx.fillStyle = "#2c7fb8";
+    ctx.fillRect(0, GROUND_Y - 110, CANVAS_W, 26);
+    // Water sparkles
+    for (const s of game.stars) {
+      const sx = s.x - game.worldX * 0.4;
+      const wrapped = ((sx % CANVAS_W) + CANVAS_W) % CANVAS_W;
+      ctx.fillStyle = "rgba(255,255,255,0.7)";
+      ctx.beginPath();
+      ctx.arc(wrapped, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Wet sand strip just below water
+    ctx.fillStyle = "#e9c082";
+    ctx.fillRect(0, GROUND_Y - 84, CANVAS_W, 18);
+    // Dry sand band
+    ctx.fillStyle = "#f4d28c";
+    ctx.fillRect(0, GROUND_Y - 66, CANVAS_W, 66);
+
+    // Palm trees (parallax)
+    for (const t of game.buildings) {
+      const sx = t.x - game.worldX * 0.65;
+      if (sx + t.w < -20 || sx > CANVAS_W + 20) continue;
+      drawPalmTree(sx, t.w, t.h);
+    }
+
+    // Beach umbrellas scenery
+    for (const u of game.streetlights) {
+      const sx = u.x - game.worldX;
+      if (sx < -40 || sx > CANVAS_W + 40) continue;
+      drawBeachUmbrella(sx);
+    }
+
+    // Themed signs
+    drawRoadsideSign(2000, "🏖 PIER");
+    drawRoadsideSign(4200, "🏝 ISLE");
+    drawRoadsideSign(6000, "🌅 SUNSET");
+
+    // Road (boardwalk planks)
+    ctx.fillStyle = "#9b6b3a";
+    ctx.fillRect(0, GROUND_Y, CANVAS_W, CANVAS_H - GROUND_Y);
+    // Plank seams
+    ctx.fillStyle = "#7a4f25";
+    const plankW = 50;
+    const off = game.worldX % plankW;
+    for (let i = -1; i * plankW - off < CANVAS_W; i++) {
+      ctx.fillRect(i * plankW - off, GROUND_Y, 3, CANVAS_H - GROUND_Y);
+    }
+  }
+
+  function drawPalmTree(x, w, h) {
+    // Trunk
+    ctx.fillStyle = "#7a4f25";
+    ctx.fillRect(x + w / 2 - 4, GROUND_Y - 66 - h, 8, h);
+    // Leaves (4 fronds)
+    ctx.fillStyle = "#2e8b3a";
+    const top = GROUND_Y - 66 - h;
+    for (let i = 0; i < 4; i++) {
+      const angle = -Math.PI / 2 + (i - 1.5) * 0.5;
+      ctx.save();
+      ctx.translate(x + w / 2, top);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.ellipse(0, -18, 6, 22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    // Coconuts
+    ctx.fillStyle = "#5a3a1f";
+    ctx.beginPath();
+    ctx.arc(x + w / 2 - 5, top + 3, 3, 0, Math.PI * 2);
+    ctx.arc(x + w / 2 + 5, top + 4, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawBeachUmbrella(x) {
+    // Stand
+    ctx.fillStyle = "#222";
+    ctx.fillRect(x - 1, GROUND_Y - 60, 2, 60);
+    // Canopy
+    ctx.fillStyle = "#d7263d";
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND_Y - 60);
+    ctx.lineTo(x + 22, GROUND_Y - 42);
+    ctx.lineTo(x - 22, GROUND_Y - 42);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = "#fff";
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND_Y - 60);
+    ctx.lineTo(x + 7, GROUND_Y - 42);
+    ctx.lineTo(x - 7, GROUND_Y - 42);
+    ctx.closePath();
+    ctx.fill();
+  }
+
   function drawTransitionBanner() {
     const alpha = Math.min(1, game.transition.frames / 40);
     ctx.save();
@@ -565,10 +938,17 @@
     ctx.font = "bold 38px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("🏙  Level 2: City Rush!", CANVAS_W / 2, CANVAS_H / 2 - 18);
-    ctx.fillStyle = "#fff";
-    ctx.font = "18px sans-serif";
-    ctx.fillText(`+${CITY_TIME_BONUS}s time bonus — navigate the city streets!`, CANVAS_W / 2, CANVAS_H / 2 + 24);
+    if (game.transition.banner === "coastal") {
+      ctx.fillText("🏖  Level 3: Coastal Cruise!", CANVAS_W / 2, CANVAS_H / 2 - 18);
+      ctx.fillStyle = "#fff";
+      ctx.font = "18px sans-serif";
+      ctx.fillText(`+${COASTAL_TIME_BONUS}s time bonus — cruise the boardwalk to sunset!`, CANVAS_W / 2, CANVAS_H / 2 + 24);
+    } else {
+      ctx.fillText("🏙  Level 2: City Rush!", CANVAS_W / 2, CANVAS_H / 2 - 18);
+      ctx.fillStyle = "#fff";
+      ctx.font = "18px sans-serif";
+      ctx.fillText(`+${CITY_TIME_BONUS}s time bonus — navigate the city streets!`, CANVAS_W / 2, CANVAS_H / 2 + 24);
+    }
     ctx.restore();
   }
 
@@ -849,7 +1229,7 @@
     updateHud();
     els.pauseOverlay.classList.add("hidden");
     els.gameoverOverlay.classList.add("hidden");
-    els.initialsSection.classList.add("hidden");
+    if (els.celebrationOverlay) els.celebrationOverlay.classList.add("hidden");
 
     showScreen("game");
     cancelAnimationFrame(game.rafId);
@@ -858,11 +1238,15 @@
     // First-run tutorial pops on top of the game canvas; dismissal binds
     // to any key or click. Won't show again after first dismiss.
     showTutorialIfFirstRun();
+
+    // Kick off level-1 music
+    startMusic(1);
   }
 
   function endGame(reachedDestination, timedOut = false) {
     game.running = false;
     cancelAnimationFrame(game.rafId);
+    stopMusic();
 
     if (reachedDestination) {
       game.score += Math.round(game.health * 5);
@@ -876,6 +1260,7 @@
     if (reachedDestination) {
       if (game.level === 1) bumpStat("level1Wins", 1);
       if (game.level === 2) bumpStat("level2Wins", 1);
+      if (game.level === 3) bumpStat("level3Wins", 1);
     }
     const runStats = {
       reachedDestination,
@@ -897,27 +1282,89 @@
       recordDailyScore(game.score);
     }
 
+    const winTitles = {
+      1: "City Conquered! 🏙🎉",   // Won L1 → message reads as L2-conquered? Actually wait — L1 win triggers startLevel2(), not endGame. Only L2 and L3 wins reach endGame(true).
+      2: "City Conquered! 🏙🎉",
+      3: "Sunset Reached! 🌅🎉",
+    };
+    const winMessages = {
+      2: "Asha navigated the city streets and reached the fireworks show. Happy 4th!",
+      3: "Asha cruised the boardwalk to sunset. The vacation finale was unforgettable!",
+    };
     els.gameoverTitle.textContent = reachedDestination
-      ? "City Conquered! 🏙🎉"
+      ? (winTitles[game.level] || "You Made It! 🎉")
       : timedOut ? "Out of Time! ⏰" : "Out of Gas!";
     els.gameoverMessage.textContent = reachedDestination
-      ? "Asha navigated the city streets and reached the fireworks show. Happy 4th!"
+      ? (winMessages[game.level] || "Asha reached her vacation destination!")
       : timedOut
-      ? "The city lights faded before Asha reached her destination!"
-      : "Asha's city drive ended early. Better luck next weekend!";
+      ? "The clock ran out before Asha reached her destination!"
+      : "Asha's drive ended early. Better luck next weekend!";
     els.finalScore.textContent = game.score;
 
     const qualifies = scoreQualifies(game.score);
     if (qualifies) {
-      els.initialsSection.classList.remove("hidden");
-      const inputs = document.querySelectorAll(".initial");
-      inputs.forEach((i) => (i.value = ""));
-      inputs[0].focus();
+      // Skip the standard gameover card — go straight to the celebratory
+      // initials screen. The gameover card will appear after they save.
+      showCelebrationScreen(game.score);
     } else {
-      els.initialsSection.classList.add("hidden");
+      els.gameoverOverlay.classList.remove("hidden");
     }
+  }
 
-    els.gameoverOverlay.classList.remove("hidden");
+  // ----- Celebration / Initials entry screen -----
+  function rankFor(score) {
+    const scores = loadHighScores();
+    let rank = scores.length + 1;
+    for (let i = 0; i < scores.length; i++) {
+      if (score > scores[i].score) { rank = i + 1; break; }
+    }
+    return rank;
+  }
+
+  function rankBadge(rank) {
+    if (rank === 1) return "🥇 #1";
+    if (rank === 2) return "🥈 #2";
+    if (rank === 3) return "🥉 #3";
+    return `🏅 #${rank}`;
+  }
+
+  function showCelebrationScreen(finalScore) {
+    if (!els.celebrationOverlay) return;
+    els.celebrationRank.textContent = rankBadge(rankFor(finalScore));
+    // Start at zero and animate up — feels celebratory
+    animateScoreCountUp(0, finalScore, 1200);
+    // Reset initials to AAA each time
+    const inputs = document.querySelectorAll(".celebration-card .big-initial");
+    inputs.forEach((i, idx) => {
+      i.value = ["A", "S", "H"][idx] || "A"; // default initials = Asha
+    });
+    els.celebrationOverlay.classList.remove("hidden");
+    // Focus the first input so keyboard typing works immediately
+    setTimeout(() => inputs[0] && inputs[0].focus(), 200);
+  }
+
+  function animateScoreCountUp(from, to, durationMs) {
+    if (!els.celebrationScoreValue) return;
+    const start = performance.now();
+    function step(now) {
+      const t = Math.min(1, (now - start) / durationMs);
+      // Ease-out cubic for a snappy slowdown near the final value
+      const eased = 1 - Math.pow(1 - t, 3);
+      const value = Math.round(from + (to - from) * eased);
+      els.celebrationScoreValue.textContent = value.toLocaleString();
+      if (t < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  function cycleInitial(idx, dir) {
+    const input = document.querySelector(`.celebration-card .big-initial[data-i="${idx}"]`);
+    if (!input) return;
+    const cur = (input.value || "A").toUpperCase().charCodeAt(0);
+    let next = cur + dir;
+    if (next < 65) next = 90;       // wrap Z when going below A
+    if (next > 90) next = 65;       // wrap A when going above Z
+    input.value = String.fromCharCode(next);
   }
 
   // ----- Selfie / Scrapbook -----
@@ -1118,13 +1565,14 @@
       return Object.assign({
         level1Wins: 0,
         level2Wins: 0,
+        level3Wins: 0,
         itemsCollected: 0,
         maxCombo: 1,
         selfiesTaken: 0,
         honks: 0,
       }, parsed);
     } catch {
-      return { level1Wins: 0, level2Wins: 0, itemsCollected: 0, maxCombo: 1, selfiesTaken: 0, honks: 0 };
+      return { level1Wins: 0, level2Wins: 0, level3Wins: 0, itemsCollected: 0, maxCombo: 1, selfiesTaken: 0, honks: 0 };
     }
   }
   function saveStats(s) {
@@ -1336,6 +1784,13 @@
     els.tutorialOverlay.classList.remove("hidden");
     game.tutorialActive = true;
   }
+  // Force-shows the tutorial overlay (used by the title-screen "How to Play"
+  // button). Doesn't consult the seen-flag and doesn't store one.
+  function showTutorialOnDemand() {
+    if (!els.tutorialOverlay) return;
+    els.tutorialOverlay.classList.remove("hidden");
+    game.tutorialActive = true;
+  }
   function dismissTutorial() {
     if (!game.tutorialActive) return;
     game.tutorialActive = false;
@@ -1357,6 +1812,7 @@
       game.rafId = requestAnimationFrame(loop);
       return;
     }
+    pollGamepad();
     if (!game.paused) {
       if (game.selfie.active) {
         // World freezes during the selfie — timer + physics paused.
@@ -1574,6 +2030,8 @@
     if (game.worldX >= WORLD_LENGTH) {
       if (game.level === 1) {
         startLevel2();
+      } else if (game.level === 2) {
+        startLevel3();
       } else {
         endGame(true);
       }
@@ -1710,7 +2168,8 @@
   // ----- Rendering -----
   function render() {
     ctx.save();
-    if (game.shake.frames > 0) {
+    const reduceMotion = loadSettings().reduceMotion;
+    if (game.shake.frames > 0 && !reduceMotion) {
       const s = game.shake.intensity * (game.shake.frames / 18);
       ctx.translate(
         (Math.random() - 0.5) * 2 * s,
@@ -1718,7 +2177,9 @@
       );
     }
 
-    if (game.level === 2) {
+    if (game.level === 3) {
+      renderCoastalBackground();
+    } else if (game.level === 2) {
       renderCityBackground();
     } else {
       renderHighwayBackground();
@@ -1815,6 +2276,12 @@
     const w = PLAYER_W;
     const h = PLAYER_H;
 
+    // Selected-car color palette
+    const car = getCarById(loadSelectedCar());
+    const COLOR_BODY   = car.colors.body;
+    const COLOR_STRIPE = car.colors.stripe;
+    const COLOR_ROOF   = car.colors.roof;
+
     // Shadow on road (only when grounded)
     if (p.onGround) {
       ctx.fillStyle = "rgba(0, 0, 0, 0.25)";
@@ -1837,7 +2304,7 @@
     ctx.fillRect(x + 16, y - 1, w - 32, 2);
 
     // Cabin / roof (rounded trapezoid)
-    ctx.fillStyle = "#d7263d";
+    ctx.fillStyle = COLOR_ROOF;
     ctx.beginPath();
     ctx.moveTo(x + 14, y + 14);
     ctx.lineTo(x + 22, y);
@@ -1894,11 +2361,11 @@
     ctx.fillRect(driverX + 1, y + 9, 8, 2);
 
     // Lower body of car
-    ctx.fillStyle = "#d7263d";
+    ctx.fillStyle = COLOR_BODY;
     ctx.fillRect(x + 4, y + 14, w - 8, 18);
 
-    // White 4th-of-July stripe
-    ctx.fillStyle = "#fff";
+    // Stripe (4th-of-July white by default; varies per car)
+    ctx.fillStyle = COLOR_STRIPE;
     ctx.fillRect(x + 4, y + 22, w - 8, 4);
 
     // Door line
@@ -2112,6 +2579,98 @@
         ctx.lineWidth = 1.5;
         ctx.strokeRect(x, y, w, h);
         break;
+
+      // ----- Coastal (Level 3) obstacles -----
+      case "shell":
+        // Pink scallop shell
+        ctx.fillStyle = "#ffc0cb";
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h / 2 + 4, w / 2, h, 0, Math.PI, 2 * Math.PI);
+        ctx.fill();
+        ctx.strokeStyle = "#c46a85";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        // Ridges
+        ctx.strokeStyle = "#c46a85";
+        ctx.lineWidth = 1;
+        for (let i = -2; i <= 2; i++) {
+          ctx.beginPath();
+          ctx.moveTo(x + w / 2, y + h / 2 + 4);
+          ctx.lineTo(x + w / 2 + i * 8, y - 2);
+          ctx.stroke();
+        }
+        break;
+      case "sandcastle":
+        // Sand castle with two turrets
+        ctx.fillStyle = "#e0b878";
+        ctx.fillRect(x + 6, y + 8, w - 12, h - 8);
+        ctx.fillRect(x + 4, y + 8, 8, h - 8);
+        ctx.fillRect(x + w - 12, y + 8, 8, h - 8);
+        // Turret tops (battlements)
+        ctx.fillRect(x + 4, y + 4, 3, 6);
+        ctx.fillRect(x + 9, y + 4, 3, 6);
+        ctx.fillRect(x + w - 12, y + 4, 3, 6);
+        ctx.fillRect(x + w - 7, y + 4, 3, 6);
+        // Flag
+        ctx.fillStyle = "#d7263d";
+        ctx.fillRect(x + w / 2 - 1, y - 6, 2, 12);
+        ctx.beginPath();
+        ctx.moveTo(x + w / 2 + 1, y - 6);
+        ctx.lineTo(x + w / 2 + 9, y - 3);
+        ctx.lineTo(x + w / 2 + 1, y);
+        ctx.closePath();
+        ctx.fill();
+        break;
+      case "umbrella":
+        // Beach umbrella in the road — bigger version of the scenery one
+        ctx.fillStyle = "#333";
+        ctx.fillRect(x + w / 2 - 1, y + h - 30, 2, 30);
+        // Striped canopy
+        ctx.save();
+        ctx.translate(x + w / 2, y + h - 30);
+        const stripeColors = ["#d7263d", "#fff", "#ffd60a", "#fff"];
+        for (let i = 0; i < 8; i++) {
+          ctx.fillStyle = stripeColors[i % stripeColors.length];
+          const a1 = Math.PI + i * Math.PI / 8;
+          const a2 = a1 + Math.PI / 8;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.arc(0, 0, 24, a1, a2);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.restore();
+        break;
+      case "seagull":
+        // Flying seagull silhouette (this is up high; jump WON'T help — drive under)
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h / 2, w / 2 - 2, h / 2 - 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Wings as a "V"
+        ctx.strokeStyle = "#222";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(x - 4, y + 4);
+        ctx.lineTo(x + w / 2 - 4, y + 14);
+        ctx.lineTo(x + w / 2, y + 8);
+        ctx.lineTo(x + w / 2 + 4, y + 14);
+        ctx.lineTo(x + w + 4, y + 4);
+        ctx.stroke();
+        // Beak
+        ctx.fillStyle = "#ff7b00";
+        ctx.beginPath();
+        ctx.moveTo(x + w - 2, y + h / 2);
+        ctx.lineTo(x + w + 6, y + h / 2 + 1);
+        ctx.lineTo(x + w - 2, y + h / 2 + 3);
+        ctx.closePath();
+        ctx.fill();
+        // Eye
+        ctx.fillStyle = "#222";
+        ctx.beginPath();
+        ctx.arc(x + w - 8, y + h / 2 - 1, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+        break;
     }
   }
 
@@ -2125,7 +2684,9 @@
     ctx.font = "22px serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    const emojis = game.level === 2
+    const emojis = game.level === 3
+      ? { souvenir: "🐚", snack: "🍦", postcard: "🏖", camera: "📸" }
+      : game.level === 2
       ? { souvenir: "🗽", snack: "🌭", postcard: "🎭", camera: "📸" }
       : { souvenir: "🗽", snack: "🍿", postcard: "💌", camera: "📸" };
     ctx.fillText(emojis[type], x + 14, y + 16);
@@ -2628,15 +3189,37 @@
     showScreen("title");
   });
   document.getElementById("btn-save-score").addEventListener("click", () => {
-    const inputs = document.querySelectorAll(".initial");
+    const inputs = document.querySelectorAll(".celebration-card .big-initial");
     let initials = "";
-    inputs.forEach((i) => (initials += i.value || "_"));
-    initials = initials.slice(0, 3).toUpperCase();
+    inputs.forEach((i) => (initials += (i.value || "_").toUpperCase()));
+    initials = initials.slice(0, 3);
     addHighScore(initials, game.score);
-    els.initialsSection.classList.add("hidden");
-    renderHighScores();
-    showScreen("scores");
-    els.gameoverOverlay.classList.add("hidden");
+    if (els.celebrationOverlay) els.celebrationOverlay.classList.add("hidden");
+    // After saving, fall through to the standard game-over card so the
+    // player has Play Again / Scrapbook / Title options available.
+    els.gameoverOverlay.classList.remove("hidden");
+  });
+
+  // Arrow buttons on the big-initial slots — arcade-machine cycle
+  document.querySelectorAll(".celebration-card .initial-arrow").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      const stack = btn.closest(".initial-stack");
+      if (!stack) return;
+      const idx = parseInt(stack.dataset.i, 10);
+      const dir = btn.classList.contains("up") ? -1 : 1;
+      cycleInitial(idx, dir);
+    });
+  });
+
+  // Arrow keys also cycle the focused initial up/down
+  document.querySelectorAll(".celebration-card .big-initial").forEach((input) => {
+    input.addEventListener("keydown", (e) => {
+      const idx = parseInt(input.dataset.i, 10);
+      if (e.key === "ArrowUp")   { e.preventDefault(); cycleInitial(idx, -1); }
+      if (e.key === "ArrowDown") { e.preventDefault(); cycleInitial(idx,  1); }
+      if (e.key === "Enter")     { document.getElementById("btn-save-score").click(); }
+    });
   });
 
   // ----- Scrapbook screen wiring -----
@@ -2659,6 +3242,153 @@
     showScreen("scrapbook");
   });
 
+  // ----- Mobile / touch controls -----
+  // On touch-capable devices, show 4 buttons overlaid on the canvas that
+  // drive the same game.keys[] state used by keyboard input.
+  function isTouchDevice() {
+    return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  }
+  function wireTouchButton(btnEl, keyName, oneShot, oneShotHandler) {
+    if (!btnEl) return;
+    const onDown = (e) => {
+      e.preventDefault();
+      if (oneShot) {
+        oneShotHandler();
+      } else {
+        game.keys[keyName] = true;
+      }
+      btnEl.classList.add("active");
+    };
+    const onUp = (e) => {
+      e.preventDefault();
+      if (!oneShot) game.keys[keyName] = false;
+      btnEl.classList.remove("active");
+    };
+    btnEl.addEventListener("touchstart", onDown, { passive: false });
+    btnEl.addEventListener("touchend",   onUp,   { passive: false });
+    btnEl.addEventListener("touchcancel", onUp,  { passive: false });
+    // Also support mouse for testing on desktop
+    btnEl.addEventListener("mousedown", onDown);
+    btnEl.addEventListener("mouseup", onUp);
+    btnEl.addEventListener("mouseleave", onUp);
+  }
+  function setupTouchControls() {
+    const root = document.getElementById("touch-controls");
+    if (!root) return;
+    if (!isTouchDevice()) {
+      root.classList.add("hidden");
+      return;
+    }
+    root.classList.remove("hidden");
+    wireTouchButton(document.getElementById("tc-left"),  "ArrowLeft");
+    wireTouchButton(document.getElementById("tc-right"), "ArrowRight");
+    wireTouchButton(document.getElementById("tc-jump"),  "ArrowUp");
+    wireTouchButton(document.getElementById("tc-selfie"), null, true, tryStartSelfie);
+    wireTouchButton(document.getElementById("tc-honk"),   null, true, honk);
+  }
+
+  // ----- Gamepad support -----
+  // Polled inside the main loop. D-pad / left stick = move, A = jump,
+  // X = selfie, B = honk, Start = pause.
+  let gamepadPrev = {}; // edge-detect for single-press buttons
+  function pollGamepad() {
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    let pad = null;
+    for (const p of pads) { if (p) { pad = p; break; } }
+    if (!pad) return;
+    const ax = pad.axes[0] || 0;
+    const dpadL = pad.buttons[14] && pad.buttons[14].pressed;
+    const dpadR = pad.buttons[15] && pad.buttons[15].pressed;
+    game.keys["ArrowLeft"]  = dpadL || ax < -0.4;
+    game.keys["ArrowRight"] = dpadR || ax >  0.4;
+    // A (button 0) = jump (held)
+    game.keys["ArrowUp"] = pad.buttons[0] && pad.buttons[0].pressed;
+    // X (button 2) = selfie, one-shot
+    const xNow = pad.buttons[2] && pad.buttons[2].pressed;
+    if (xNow && !gamepadPrev.x) tryStartSelfie();
+    gamepadPrev.x = xNow;
+    // B (button 1) = honk, one-shot
+    const bNow = pad.buttons[1] && pad.buttons[1].pressed;
+    if (bNow && !gamepadPrev.b) honk();
+    gamepadPrev.b = bNow;
+    // Start (button 9) = pause, one-shot
+    const sNow = pad.buttons[9] && pad.buttons[9].pressed;
+    if (sNow && !gamepadPrev.s && game.running) togglePause();
+    gamepadPrev.s = sNow;
+  }
+
+  // ----- Settings UI -----
+  function openSettings() {
+    const s = loadSettings();
+    document.getElementById("setting-sfx").value = s.sfxVolume;
+    document.getElementById("setting-music").value = s.musicVolume;
+    document.getElementById("setting-reducemotion").checked = !!s.reduceMotion;
+    document.getElementById("settings-overlay").classList.remove("hidden");
+  }
+  function closeSettings() {
+    document.getElementById("settings-overlay").classList.add("hidden");
+  }
+  function bindSettingsControls() {
+    const sfx = document.getElementById("setting-sfx");
+    const music = document.getElementById("setting-music");
+    const rm = document.getElementById("setting-reducemotion");
+    if (!sfx || !music || !rm) return;
+    const persist = () => {
+      const s = loadSettings();
+      s.sfxVolume = parseFloat(sfx.value);
+      s.musicVolume = parseFloat(music.value);
+      s.reduceMotion = rm.checked;
+      saveSettings(s);
+      applySettings();
+    };
+    sfx.addEventListener("input", persist);
+    music.addEventListener("input", persist);
+    rm.addEventListener("change", persist);
+  }
+
+  // ----- Car selector on title -----
+  function renderCarSelector() {
+    const grid = document.getElementById("car-grid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    const stats = loadStats();
+    const selected = loadSelectedCar();
+    for (const car of CARS) {
+      const unlocked = car.unlockCheck(stats);
+      const isSelected = selected === car.id;
+      const card = document.createElement("button");
+      // Keep BOTH the new arcade class and the legacy `car-card` class so any
+      // older CSS or JS that references `.car-card` still works.
+      card.className = "vehicle-card car-card" +
+        (unlocked ? "" : " locked") +
+        (isSelected ? " selected" : "");
+      card.disabled = !unlocked;
+      card.setAttribute(
+        "aria-label",
+        `${car.name}${unlocked ? "" : " (locked)"}${isSelected ? " (selected)" : ""}`
+      );
+      card.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      // Collectible-card markup: optional lock badge, emoji area, name, blurb,
+      // and a "selected" pill when this is the current pick.
+      card.innerHTML =
+        (unlocked ? "" : `<span class="vehicle-lock" aria-hidden="true">🔒</span>`) +
+        `<div class="vehicle-emoji-area">
+           <span class="vehicle-emoji">${car.emoji}</span>
+         </div>
+         <div class="vehicle-info">
+           <div class="vehicle-name car-name">${car.name}</div>
+           <div class="vehicle-blurb car-blurb">${car.blurb}</div>
+           ${isSelected ? `<span class="vehicle-selected-badge">✓ SELECTED</span>` : ""}
+         </div>`;
+      card.addEventListener("click", () => {
+        if (!unlocked) return;
+        saveSelectedCar(car.id);
+        renderCarSelector();
+      });
+      grid.appendChild(card);
+    }
+  }
+
   // ----- Difficulty selector wiring -----
   function refreshDifficultyButtons() {
     const current = loadDifficulty();
@@ -2674,6 +3404,24 @@
     });
   }
   refreshDifficultyButtons();
+
+  // ----- Settings + cars + touch wiring -----
+  document.getElementById("btn-settings").addEventListener("click", openSettings);
+  document.getElementById("btn-close-settings").addEventListener("click", closeSettings);
+  // "How to Play" on the title screen — force-shows the tutorial overlay
+  // without consulting the first-run flag.
+  const btnHowTo = document.getElementById("btn-how-to-play");
+  if (btnHowTo) btnHowTo.addEventListener("click", showTutorialOnDemand);
+  bindSettingsControls();
+  renderCarSelector();
+  setupTouchControls();
+  applySettings();
+
+  // Refresh the car selector whenever the user returns to the title screen,
+  // so newly-won unlocks appear immediately.
+  document.getElementById("btn-go-title").addEventListener("click", renderCarSelector);
+  document.getElementById("btn-back-title").addEventListener("click", renderCarSelector);
+  document.getElementById("btn-quit").addEventListener("click", renderCarSelector);
 
   // ----- Bootstrap -----
   setupInitialsInputs();

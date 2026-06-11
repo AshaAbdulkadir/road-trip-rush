@@ -201,6 +201,70 @@ On your very first game, an overlay appears with the full control
 scheme. Press any key to dismiss — it won't appear again. The flag is
 stored under `roadTripRush.tutorialSeen.v1`.
 
+## 🏖 Level 3: Coastal Cruise
+
+After conquering the city, the road keeps going right onto the
+boardwalk. Dawn sky, palm trees, sand dunes, a glittering ocean
+horizon, and four new obstacles:
+
+| Obstacle | Notes |
+|---|---|
+| 🐚 Shell | Big pink scallop on the boardwalk |
+| 🏰 Sandcastle | Mid-height — hop over it |
+| ☂ Beach umbrella | Striped canopy, blocks the road |
+| 🐦 Seagull | Flies high — don't jump into it! |
+
+Collectibles change to coastal themes: 🐚 shells, 🍦 ice cream,
+🏖 postcards, 📸 cameras. Roadside signs read PIER · ISLE · SUNSET.
+You get a +60s time bonus on entry.
+
+## 🚗 Unlockable cars
+
+Pick your ride on the title screen — newly unlocked cars appear
+automatically after each level win.
+
+| Car | Unlock |
+|---|---|
+| 🚗 Classic Hatchback | Always available |
+| 🏎 Sky Convertible (blue) | Beat Level 1 |
+| 🚙 Vacation RV (tan) | Beat Level 2 |
+| 🚐 Party Cruiser (gold) | Beat Level 3 |
+
+Cars are visual-only — same dimensions and stats. Choice is saved under
+`roadTripRush.selectedCar.v1`.
+
+## ⚙ Settings
+
+`⚙ Settings` on the title screen opens a panel with:
+
+- **🔊 SFX volume** slider (0 – 100%)
+- **🎵 Music volume** slider — defaults to **off** since the music is
+  procedural chiptune that loops per level. Turn it up if you enjoy
+  square-wave road-trip vibes.
+- **✨ Reduce motion** — disables the screen-shake on obstacle hits
+  and tilts in the polaroid scrapbook cards. Useful for motion
+  sensitivity.
+
+Settings persist under `roadTripRush.settings.v1` with separate Web
+Audio master gain nodes for SFX and music so each slider mutes its bus
+independently.
+
+## 📱 Mobile / 🎮 Gamepad
+
+**Touch controls** appear automatically on touch-capable devices: ◀ ▶
+to drive, ⤴ to hop, 📸 selfie, 🔊 honk.
+
+**Gamepad** is polled inside the main loop via the standard
+`navigator.getGamepads()` API:
+
+| Pad input | Action |
+|---|---|
+| D-pad / left stick | Drive |
+| A | Hop |
+| X | 📸 Selfie |
+| B | 🔊 Honk |
+| Start | Pause |
+
 ## Requirements Coverage
 
 | Requirement                                                                 | Where it lives                                              |

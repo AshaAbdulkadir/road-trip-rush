@@ -8,65 +8,221 @@
 <body>
   <div id="app">
 
-    <!-- TITLE SCREEN -->
-    <section id="title-screen" class="screen active">
-      <div class="banner">
-        <span class="star">★</span>
-        <h1>Road Trip Rush</h1>
-        <span class="star">★</span>
-      </div>
-      <p class="tagline">An American 4th of July Weekend Adventure</p>
+    <!-- ====================================================================
+         TITLE SCREEN — Cinematic 4th of July Arcade Edition
+         Sections (top to bottom):
+           1. Animated cinematic background (sunset, stars, fireworks, road)
+           2. Game-logo hero with subtitle ribbon
+           3. Mission card with story + feature badges
+           4. Main CTA: Start + Daily
+           5. Vehicle picker (collectible-card style)
+           6. Difficulty picker (mode-card style)
+           7. Bottom navigation menu
+           8. What's New strip
+         ==================================================================== -->
+    <section id="title-screen" class="screen active title-screen" aria-labelledby="game-logo-text">
 
-      <div class="story">
-        <h2>Meet Asha TC²</h2>
-        <p>
-          Asha is a hardworking student and tech professional who has been
-          grinding through certifications, sprints, and on-call shifts.
-          This 4th of July weekend, she finally clocks out, loads her
-          suitcase onto the roof rack of her trusty red road-trip car,
-          and hits the open American highway.
-        </p>
-        <p>
-          <strong>Goal:</strong> Drive to the vacation destination before
-          sunset. Collect souvenirs, snacks, and postcards along the way —
-          and steer (or hop!) over potholes, traffic cones, roadblocks,
-          and low-fuel hazards along the road.
-        </p>
-      </div>
+      <!-- Cinematic animated background — multiple layers for depth -->
+      <div class="title-bg" aria-hidden="true">
+        <div class="bg-sky"></div>
+        <div class="bg-rays"></div>
 
-      <div class="controls-card">
-        <h3>Controls</h3>
-        <ul>
-          <li><kbd>←</kbd> / <kbd>A</kbd> — Reverse / drive left</li>
-          <li><kbd>→</kbd> / <kbd>D</kbd> — Drive right</li>
-          <li><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>Space</kbd> — Hop over obstacles</li>
-          <li><kbd>C</kbd> — 📸 Take a selfie (3 per run)</li>
-          <li><kbd>H</kbd> — 🔊 Honk</li>
-          <li><kbd>P</kbd> — Pause / Resume</li>
-        </ul>
-      </div>
+        <!-- Distant twinkling stars -->
+        <div class="bg-stars">
+          <span class="bg-star" style="--x:3%;  --y:8%;  --d:0s"></span>
+          <span class="bg-star" style="--x:12%; --y:14%; --d:1.4s"></span>
+          <span class="bg-star" style="--x:22%; --y:5%;  --d:2.1s"></span>
+          <span class="bg-star" style="--x:32%; --y:11%; --d:0.6s"></span>
+          <span class="bg-star" style="--x:42%; --y:7%;  --d:1.9s"></span>
+          <span class="bg-star" style="--x:52%; --y:13%; --d:2.7s"></span>
+          <span class="bg-star" style="--x:62%; --y:6%;  --d:0.3s"></span>
+          <span class="bg-star" style="--x:72%; --y:14%; --d:1.1s"></span>
+          <span class="bg-star" style="--x:82%; --y:8%;  --d:1.8s"></span>
+          <span class="bg-star" style="--x:92%; --y:12%; --d:0.9s"></span>
+          <span class="bg-star bg-star-big" style="--x:18%; --y:22%; --d:0.4s"></span>
+          <span class="bg-star bg-star-big" style="--x:78%; --y:21%; --d:1.5s"></span>
+        </div>
 
-      <div class="difficulty-picker">
-        <h3>Difficulty</h3>
-        <div class="diff-row">
-          <button class="diff-btn" data-difficulty="easy">
-            🌴 Easy<br><small>80s · gentler</small>
-          </button>
-          <button class="diff-btn" data-difficulty="normal">
-            🚗 Road-Trip<br><small>60s · balanced</small>
-          </button>
-          <button class="diff-btn" data-difficulty="hard">
-            🌅 Sunset Sprint<br><small>45s · brutal</small>
-          </button>
+        <!-- Multi-color firework bursts in upper corners -->
+        <div class="bg-firework bg-firework-a"></div>
+        <div class="bg-firework bg-firework-b"></div>
+        <div class="bg-firework bg-firework-c"></div>
+        <div class="bg-firework bg-firework-d"></div>
+        <div class="bg-firework bg-firework-e"></div>
+
+        <!-- Red-rock SW mountain silhouettes -->
+        <div class="bg-mountains"></div>
+
+        <!-- Decorative scene props (CSS shapes — no image assets) -->
+        <!-- American flag on its pole, left side -->
+        <div class="bg-flag" aria-hidden="true">
+          <div class="bg-flag-pole"></div>
+          <div class="bg-flag-cloth">
+            <div class="bg-flag-canton"></div>
+          </div>
+        </div>
+
+        <!-- Route USA 1776 highway shield sign -->
+        <div class="bg-route-sign" aria-hidden="true">
+          <div class="bg-route-shield">
+            <span class="bg-route-route">ROUTE</span>
+            <span class="bg-route-usa">USA</span>
+            <span class="bg-route-num">1776</span>
+          </div>
+          <div class="bg-route-post"></div>
+        </div>
+
+        <!-- Tiny cactus silhouette near the flag -->
+        <div class="bg-cactus" aria-hidden="true">
+          <div class="bg-cactus-trunk"></div>
+          <div class="bg-cactus-arm bg-cactus-arm-left"></div>
+          <div class="bg-cactus-arm bg-cactus-arm-right"></div>
+        </div>
+
+        <!-- Vintage road-trip suitcase with stickers, bottom right -->
+        <div class="bg-suitcase" aria-hidden="true">
+          <div class="bg-suitcase-handle"></div>
+          <div class="bg-suitcase-body">
+            <span class="bg-suitcase-clasp"></span>
+            <span class="bg-suitcase-clasp"></span>
+            <span class="bg-suitcase-sticker sticker-66">66</span>
+            <span class="bg-suitcase-sticker sticker-usa">USA</span>
+            <span class="bg-suitcase-sticker sticker-tea">TEA</span>
+          </div>
+        </div>
+
+        <!-- Rotated "FREEDOM FUN ADVENTURE" stamp/sticker -->
+        <div class="bg-freedom-badge" aria-hidden="true">
+          <span>★ FREEDOM ★</span>
+          <span>FUN</span>
+          <span>ADVENTURE</span>
+        </div>
+
+        <!-- GPS pin markers along the imagined route -->
+        <div class="bg-gps-pin bg-gps-pin-a" aria-hidden="true">📍</div>
+        <div class="bg-gps-pin bg-gps-pin-b" aria-hidden="true">📍</div>
+
+        <!-- Dotted route trail across the sky -->
+        <div class="bg-route-trail" aria-hidden="true"></div>
+
+        <!-- Subtle vignette focusing the eye -->
+        <div class="bg-vignette"></div>
+
+        <!-- Animated road at the very bottom -->
+        <div class="bg-road">
+          <div class="bg-road-stripe"></div>
         </div>
       </div>
 
-      <div class="button-row">
-        <button id="btn-start" class="primary">Start Road Trip</button>
-        <button id="btn-start-daily">🗓 Daily Challenge</button>
-        <button id="btn-view-scores">High Scores</button>
-        <button id="btn-view-scrapbook">📸 Scrapbook</button>
+      <!-- HEADER: striped flag banner + logo + subtitle ribbon -->
+      <header class="title-header">
+        <div class="logo-stripes" aria-hidden="true">
+          <span class="logo-stripe logo-stripe-r"></span>
+          <span class="logo-stripe logo-stripe-w"></span>
+          <span class="logo-stripe logo-stripe-b"></span>
+        </div>
+        <div class="game-logo">
+          <span class="logo-star logo-star-left" aria-hidden="true">★</span>
+          <h1 id="game-logo-text" class="logo-text">Road Trip Rush</h1>
+          <span class="logo-star logo-star-right" aria-hidden="true">★</span>
+        </div>
+        <div class="subtitle-ribbon">
+          <span class="ribbon-star" aria-hidden="true">★</span>
+          <span class="ribbon-text">An American 4th of July Weekend Adventure</span>
+          <span class="ribbon-star" aria-hidden="true">★</span>
+        </div>
+      </header>
+
+      <!-- Mission card with patriotic shield emblem -->
+      <article class="mission-card" aria-label="Your mission">
+        <div class="mission-shield" aria-hidden="true">
+          <span class="mission-shield-star">★</span>
+        </div>
+        <p class="mission-text">
+          <strong>Asha TC²</strong> ditched her on-call shift, packed her
+          star-spangled suitcase, and hit the open road.
+          <strong class="mission-highlight">Drive to sunset</strong>
+          before the clock runs out!
+        </p>
+      </article>
+
+      <!-- Choose Your Ride -->
+      <section class="selector-section vehicle-section" aria-label="Choose your vehicle">
+        <h3 class="section-title">
+          <span class="section-decor">★</span>
+          <span class="section-emoji" aria-hidden="true">🚗</span>
+          CHOOSE YOUR RIDE
+          <span class="section-decor">★</span>
+        </h3>
+        <div id="car-grid" class="vehicle-grid car-grid"></div>
+      </section>
+
+      <!-- Difficulty — color-themed pill buttons -->
+      <section class="selector-section difficulty-section" aria-label="Choose difficulty">
+        <h3 class="section-title">
+          <span class="section-decor">★</span>
+          <span class="section-emoji" aria-hidden="true">🎚</span>
+          DIFFICULTY
+          <span class="section-decor">★</span>
+        </h3>
+        <div class="difficulty-grid">
+          <button class="mode-card diff-btn mode-easy" data-difficulty="easy" aria-label="Easy difficulty">
+            <span class="mode-icon" aria-hidden="true">🌴</span>
+            <div class="mode-text">
+              <span class="mode-name">EASY</span>
+              <span class="mode-meta"><strong>80s</strong> · gentler</span>
+            </div>
+          </button>
+          <button class="mode-card diff-btn mode-normal" data-difficulty="normal" aria-label="Road-Trip (normal) difficulty">
+            <span class="mode-icon" aria-hidden="true">🛣</span>
+            <div class="mode-text">
+              <span class="mode-name">ROAD-TRIP</span>
+              <span class="mode-meta"><strong>60s</strong> · balanced</span>
+            </div>
+          </button>
+          <button class="mode-card diff-btn mode-hard" data-difficulty="hard" aria-label="Sunset Sprint (hard) difficulty">
+            <span class="mode-icon" aria-hidden="true">🌅</span>
+            <div class="mode-text">
+              <span class="mode-name">SUNSET SPRINT</span>
+              <span class="mode-meta"><strong>45s</strong> · brutal</span>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <!-- Primary action row -->
+      <div class="cta-row">
+        <button id="btn-start" class="primary mega-start" aria-label="Start a new road trip">
+          <span class="cta-flag" aria-hidden="true">🏁</span>
+          <span class="cta-text">START ROAD TRIP</span>
+          <span class="cta-flag" aria-hidden="true">🏁</span>
+          <span class="cta-shine" aria-hidden="true"></span>
+        </button>
+        <button id="btn-start-daily" class="big-secondary" aria-label="Play today's daily challenge">
+          <span class="cta-icon" aria-hidden="true">📅</span>
+          <span>DAILY CHALLENGE</span>
+        </button>
       </div>
+
+      <!-- Bottom navigation -->
+      <nav class="bottom-nav" aria-label="Game menu">
+        <button id="btn-view-scores" class="menu-btn">
+          <span class="menu-icon" aria-hidden="true">🏆</span>
+          <span class="menu-label">HIGH SCORES</span>
+        </button>
+        <button id="btn-view-scrapbook" class="menu-btn">
+          <span class="menu-icon" aria-hidden="true">📖</span>
+          <span class="menu-label">SCRAPBOOK</span>
+        </button>
+        <button id="btn-how-to-play" class="menu-btn">
+          <span class="menu-icon" aria-hidden="true">❓</span>
+          <span class="menu-label">HOW TO PLAY</span>
+        </button>
+        <button id="btn-settings" class="menu-btn">
+          <span class="menu-icon" aria-hidden="true">⚙</span>
+          <span class="menu-label">SETTINGS</span>
+        </button>
+      </nav>
     </section>
 
     <!-- GAMEPLAY SCREEN -->
@@ -90,6 +246,99 @@
       <div id="active-powerups" class="active-powerups"></div>
 
       <canvas id="game-canvas" width="900" height="420"></canvas>
+
+      <!-- Mobile / touch on-screen controls. Hidden on non-touch devices. -->
+      <div id="touch-controls" class="touch-controls hidden">
+        <button id="tc-left"   class="tc-btn tc-left">◀</button>
+        <button id="tc-right"  class="tc-btn tc-right">▶</button>
+        <button id="tc-jump"   class="tc-btn tc-jump">⤴</button>
+        <button id="tc-selfie" class="tc-btn tc-selfie">📸</button>
+        <button id="tc-honk"   class="tc-btn tc-honk">🔊</button>
+      </div>
+    </section>
+
+    <!-- ====================================================================
+         Overlays — direct children of #app so they're reachable from
+         ANY screen (title, scrapbook, scores) without being trapped inside
+         a screen section that's `display: none`. position: fixed handles
+         the visual placement.
+         ==================================================================== -->
+
+      <!-- New: dedicated celebration screen for entering initials when score qualifies -->
+      <div id="celebration-overlay" class="overlay celebration-overlay hidden">
+        <!-- Animated background -->
+        <div class="celebration-bg" aria-hidden="true">
+          <span class="cstar" style="--delay:0s">★</span>
+          <span class="cstar" style="--delay:1.2s">✨</span>
+          <span class="cstar" style="--delay:0.4s">🎆</span>
+          <span class="cstar" style="--delay:2.1s">⭐</span>
+          <span class="cstar" style="--delay:1.7s">🎇</span>
+          <span class="cstar" style="--delay:0.8s">✨</span>
+          <span class="cstar" style="--delay:2.6s">★</span>
+          <span class="cstar" style="--delay:3.0s">🎆</span>
+          <span class="cstar" style="--delay:0.2s">⭐</span>
+          <span class="cstar" style="--delay:2.3s">✨</span>
+        </div>
+
+        <div class="celebration-card">
+          <div class="celebration-banner">
+            <span class="star big">★</span>
+            <h2>NEW HIGH SCORE!</h2>
+            <span class="star big">★</span>
+          </div>
+
+          <div class="celebration-rank" id="celebration-rank">🥇 #1</div>
+
+          <div class="celebration-score-display">
+            <span class="celebration-score-value" id="celebration-score-value">0</span>
+            <span class="celebration-score-label">points</span>
+          </div>
+
+          <p class="celebration-prompt">Carve your initials into the leaderboard:</p>
+
+          <div class="big-initials">
+            <div class="initial-stack" data-i="0">
+              <button class="initial-arrow up"   aria-label="Previous letter">▲</button>
+              <input maxlength="1" class="initial big-initial" data-i="0" value="A" />
+              <button class="initial-arrow down" aria-label="Next letter">▼</button>
+            </div>
+            <div class="initial-stack" data-i="1">
+              <button class="initial-arrow up"   aria-label="Previous letter">▲</button>
+              <input maxlength="1" class="initial big-initial" data-i="1" value="S" />
+              <button class="initial-arrow down" aria-label="Next letter">▼</button>
+            </div>
+            <div class="initial-stack" data-i="2">
+              <button class="initial-arrow up"   aria-label="Previous letter">▲</button>
+              <input maxlength="1" class="initial big-initial" data-i="2" value="H" />
+              <button class="initial-arrow down" aria-label="Next letter">▼</button>
+            </div>
+          </div>
+
+          <button id="btn-save-score" class="primary mega-save">🚀 Save to Leaderboard</button>
+        </div>
+      </div>
+
+      <div id="settings-overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <h2>⚙ Settings</h2>
+          <div class="settings-row">
+            <label for="setting-sfx">🔊 Sound effects</label>
+            <input type="range" id="setting-sfx" min="0" max="1" step="0.05" value="0.85" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-music">🎵 Music</label>
+            <input type="range" id="setting-music" min="0" max="0.6" step="0.05" value="0" />
+            <small class="setting-note">(default off — procedural chiptune)</small>
+          </div>
+          <div class="settings-row">
+            <label for="setting-reducemotion">
+              <input type="checkbox" id="setting-reducemotion" />
+              ✨ Reduce motion (no screen shake)
+            </label>
+          </div>
+          <button id="btn-close-settings" class="primary">Done</button>
+        </div>
+      </div>
 
       <div id="tutorial-overlay" class="overlay hidden">
         <div class="tutorial-card">
@@ -120,16 +369,6 @@
           <p id="gameover-message"></p>
           <p>Final Score: <strong id="final-score">0</strong></p>
 
-          <div id="initials-section" class="hidden">
-            <p>New high score! Enter your initials:</p>
-            <div class="initials-input">
-              <input maxlength="1" class="initial" data-i="0" />
-              <input maxlength="1" class="initial" data-i="1" />
-              <input maxlength="1" class="initial" data-i="2" />
-            </div>
-            <button id="btn-save-score" class="primary">Save Score</button>
-          </div>
-
           <div class="button-row">
             <button id="btn-play-again" class="primary">Play Again</button>
             <button id="btn-view-scrapbook-from-gameover">📸 Scrapbook</button>
@@ -137,7 +376,6 @@
           </div>
         </div>
       </div>
-    </section>
 
     <!-- SCRAPBOOK SCREEN -->
     <section id="scrapbook-screen" class="screen">
