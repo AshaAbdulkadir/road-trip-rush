@@ -1797,6 +1797,11 @@
     if (els.tutorialOverlay) els.tutorialOverlay.classList.add("hidden");
     try { localStorage.setItem(TUTORIAL_KEY, "1"); } catch {}
   }
+  // Touch devices have no keyboard, and mouse players expect clicks to
+  // work — so a tap/click on the overlay dismisses it just like a key.
+  if (els.tutorialOverlay) {
+    els.tutorialOverlay.addEventListener("pointerdown", dismissTutorial);
+  }
 
   // ----- Main loop -----
   function loop(timestamp) {
